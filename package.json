@@ -1,0 +1,21 @@
+{
+  "name": "oxide",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Oxide — a floating, keyboard-first scratchpad for scattered AI work (Copper-style clone)",
+  "dependencies": {
+    "electrobun": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "electrobun dev",
+    "start": "electrobun dev",
+    "build": "electrobun build",
+    "web": "bun serve.ts"
+  }
+}
