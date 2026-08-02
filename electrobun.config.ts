@@ -2,7 +2,7 @@ export default {
   app: {
     name: "Oxide",
     identifier: "cc.astrolink.oxide",
-    version: "0.1.0",
+    version: "1.0.1",
   },
   build: {
     bun: {
