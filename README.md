@@ -1,90 +1,143 @@
 # Oxide
 
-A floating, keyboard-first scratchpad for scattered AI work — a functional clone of
-[Copper by shadcn](https://shadcn.com), built with [Bun](https://bun.sh) +
-[Electrobun](https://electrobun.dev). (Oxidized copper → Oxide.)
+Oxide is a small, floating scratchpad for the ideas, snippets, and prompts you pick up while working. It stays out of the way until you need it, then lets you capture text, organize it, and keep moving without breaking your flow.
 
-Notes are 100% local (a single JSON file), no accounts, no sync, no telemetry.
+Everything stays local. There are no accounts, sync services, or telemetry.
 
-## What it does
+## Features
 
-- **Floating panel** — frameless, transparent, rounded, always-on-top sidebar.
-- **Double-Shift capture** — select text in *any* app, tap `Shift` twice, and the
-  selection lands in Oxide with a "Captured" toast. (Windows: implemented with a
-  low-level keyboard hook helper that simulates `Ctrl+C` and verifies the
-  clipboard actually changed.)
-- **Prompt staging** — type follow-up prompts into the bottom input while the AI
-  is still generating; check them off as you go.
-- **Copy as List** — select several notes → copies them as a numbered list,
-  ready to paste into ChatGPT / Claude / Cursor.
-- **Sections** — group notes (`RESEARCH`, `PROMPT QUEUE`, …), collapse, rename,
-  drag notes between them. Right-click a section → *Set as capture target*.
-- **Markdown-lite** in cards: `**bold**`, `*italic*`, `` `code` ``, links.
-- **Keyboard-first** — see shortcuts below.
+- **Capture text from anywhere** - Select text in another app and double-tap the configured capture key, or use the clipboard shortcut.
+- **Stage prompts and ideas** - Keep follow-up prompts in a queue while an AI tool or another task is still running.
+- **Floating workspace** - Keep Oxide above other windows, minimize it to a small pill, or snap it to a screen edge or corner.
+- **Organize with sections** - Create, rename, collapse, color, and reorder sections. Choose a default section for new captures.
+- **Drag and drop notes** - Reorder notes, move them between sections, and see a clear preview of where a dragged note will land.
+- **Search and filter** - Search notes quickly or hide completed items when you want a cleaner view.
+- **Work with batches** - Select notes to copy them as plain text, a numbered list, or Markdown. Merge, duplicate, mark important, archive, or delete them in batches.
+- **Archive and Trash** - Restore archived or deleted notes, or permanently remove items when you are ready.
+- **Markdown-lite notes** - Use bold, italics, inline code, and links inside note cards.
+- **Source screenshots** - On Windows, optionally capture a screenshot of the source window alongside a captured note.
+- **Personal settings** - Choose a light, dark, or system theme; configure sounds, shortcuts, capture behavior, and completion preferences.
 
 ## Run it
 
 ```sh
 bun install
+```
 
-# Website mode (works everywhere, uses localStorage)
-bun run web        # → http://localhost:4820
+Run the browser version:
 
-# Desktop app (floating always-on-top panel, local JSON file storage)
+```sh
+bun run web
+```
+
+Then open `http://localhost:4820`. Browser mode stores notes and settings in `localStorage`.
+
+Run the desktop version:
+
+```sh
 bun run dev
 ```
 
-Data file (desktop): `%APPDATA%\OxideNotes\notes.json`
+Build the desktop app:
+
+```sh
+bun run build
+```
+
+The desktop app is intended for Windows. Browser mode works independently of the desktop shell.
 
 ## Shortcuts
 
-### Global (desktop only)
+Global shortcuts are configurable in Settings.
 
 | Keys | Action |
 | --- | --- |
-| `Shift` `Shift` | Capture the current selection from any app |
-| `Ctrl+Shift+C` | Capture whatever is on the clipboard |
-| `Ctrl+Shift+Space` | Show / hide the panel |
+| `Shift` `Shift` | Capture the current selection from another app |
+| `Ctrl+Shift+C` | Capture the current clipboard text |
+| `Ctrl+Shift+Space` | Show or hide the panel |
+| `Ctrl+Shift+M` | Snap the panel to its configured position |
 
-### In the panel
+Panel shortcuts:
 
 | Keys | Action |
 | --- | --- |
-| `↑` / `↓` | Navigate notes (`Shift` extends selection) |
-| `Space` | Mark done / not done |
-| `Enter` | Edit note (`Ctrl+Enter` saves, `Esc` cancels) |
-| `Ctrl+C` | Copy selected note(s) |
+| `Up` / `Down` | Navigate notes; hold `Shift` to extend selection |
+| `Alt+Up` / `Alt+Down` | Move selected notes |
+| `Space` | Mark selected notes done or not done |
+| `Enter` | Edit the selected note |
+| `Ctrl+C` | Copy selected notes |
 | `Ctrl+Alt+C` | Copy selected notes as a numbered list |
 | `Ctrl+A` | Select all visible notes |
+| `Ctrl+D` | Duplicate selected notes |
+| `Ctrl+I` | Mark selected notes important |
 | `Ctrl+M` | Merge selected notes |
-| `Del` | Delete selected note(s) |
+| `Ctrl+E` | Archive selected notes |
+| `Delete` | Move selected notes to Trash |
 | `/` or `Ctrl+F` | Focus search |
-| just type | Focus the composer |
+| Type with nothing selected | Focus the composer |
 
-Right-click cards/sections for the full menu (Copy as List, Merge Notes,
-Move to…, Expand, etc.). Double-click a card to edit, double-click a section
-title to rename. Drag cards to reorder or drop them on a section header.
+Right-click notes and sections for additional actions. Double-click a note to edit it and double-click a section title to rename it.
 
-## Notes & caveats
+## Tech stack
 
-- Electrobun officially supports **Windows 11+**; on Windows 10 it may or may
-  not run — the web mode works regardless.
-- The double-Shift helper simulates `Ctrl+C`, so a capture briefly replaces
-  your clipboard with the captured text (that's also true of most Windows
-  clipboard tools). If nothing is selected, nothing is captured.
-- Elevated (admin) windows won't receive the simulated `Ctrl+C` from a
-  non-elevated Oxide.
+- **Bun** for the runtime, package scripts, filesystem access, and build tooling.
+- **TypeScript** with strict type checking.
+- **Electrobun** for the native desktop window, webview, RPC bridge, global shortcuts, and Windows packaging.
+- **Vanilla TypeScript and CSS** for the interface. There is no frontend framework.
+- **Windows APIs and PowerShell helpers** for keyboard capture, DPI-aware window behavior, screenshots, and native window movement.
+- **Local storage** through JSON files on desktop and browser `localStorage` in web mode.
 
-## Project layout
+## Project structure
 
+```text
+oxidized/
+|-- assets/
+|   `-- icon.ico               Application icon
+|-- scripts/
+|   `-- embed-icon.ts          Embeds the Windows icon after building
+|-- electrobun.config.ts       Desktop and packaging configuration
+|-- package.json               Scripts and dependencies
+|-- serve.ts                   Browser-mode development server
+`-- src/
+    |-- bun/
+    |   |-- index.ts           Main process, window, storage, capture, and shortcuts
+    |   `-- shiftshift.ts      Low-level double-tap capture helper
+    |-- mainview/
+    |   |-- index.html         Webview shell
+    |   |-- index.ts           Application state and UI behavior
+    |   |-- style.css          Panel, cards, settings, and animations
+    |   |-- sounds.ts          UI sounds
+    |   `-- logo.ts            Embedded About-page logos
+    `-- shared/
+        `-- types.ts           Shared state types and RPC schema
 ```
-electrobun.config.ts     app/build config
-serve.ts                 website-mode dev server
-src/
-  shared/types.ts        state + typed RPC schema (bun ↔ webview)
-  bun/index.ts           main process: window, storage, shortcuts, clipboard
-  bun/shiftshift.ts      double-Shift low-level keyboard hook helper (Windows)
-  mainview/index.html    webview shell
-  mainview/style.css     the floating-panel look
-  mainview/index.ts      the whole UI (vanilla TS, no framework)
+
+## Local data
+
+Desktop data is stored under:
+
+```text
+%LOCALAPPDATA%\oxidized\
+|-- settings.json
+`-- blobs/
+    |-- notes.json
+    `-- shots/
 ```
+
+Oxide does not upload or synchronize this data.
+
+## Windows notes
+
+- The double-tap capture helper briefly uses `Ctrl+C` to read the selected text. This can temporarily replace the clipboard contents.
+- Capturing from elevated administrator windows may not work when Oxide is running without administrator privileges.
+- The desktop app targets Windows. Use browser mode on other platforms.
+
+## A note from the maker
+
+_This space is reserved for a short handwritten message._
+
+____________________________________________________________
+
+____________________________________________________________
+
+____________________________________________________________
