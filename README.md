@@ -44,7 +44,16 @@ Build the desktop app:
 bun run build
 ```
 
-The desktop app is intended for Windows. Browser mode works independently of the desktop shell.
+## Platform support
+
+| Platform | Status |
+| --- | --- |
+| macOS 14+ | Officially supported |
+| Windows 11+ | Officially supported |
+| Ubuntu 22.04+ | Officially supported |
+| Windows 10 | Works and tested, but not officially supported |
+
+Browser mode works independently of the desktop shell and can be used on other platforms.
 
 ## Shortcuts
 
@@ -130,7 +139,8 @@ Oxide does not upload or synchronize this data.
 
 - The double-tap capture helper briefly uses `Ctrl+C` to read the selected text. This can temporarily replace the clipboard contents.
 - Capturing from elevated administrator windows may not work when Oxide is running without administrator privileges.
-- The desktop app targets Windows. Use browser mode on other platforms.
+- Windows 10 has been tested and works, but it is outside the official support policy.
+- Official desktop support covers macOS 14+, Windows 11+, and Ubuntu 22.04+.
 
 ## A note from the maker
 

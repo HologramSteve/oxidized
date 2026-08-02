@@ -37,8 +37,18 @@ jobs:
         run: bun build src/mainview/index.ts --target browser --outdir "$RUNNER_TEMP/oxide-web"
 
   desktop-build:
-    name: Windows desktop build
-    runs-on: windows-latest
+    name: Desktop build (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: macOS 14+
+          - os: windows-latest
+            platform: Windows 11+
+          - os: ubuntu-22.04
+            platform: Ubuntu 22.04+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out repository

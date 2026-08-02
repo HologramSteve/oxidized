@@ -1,5 +1,6 @@
 node_modules/
 build/
+artifacts/
 coverage/
 
 # local environment and secrets
