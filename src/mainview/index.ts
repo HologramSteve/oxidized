@@ -10,6 +10,7 @@ import {
   type Section,
 } from "../shared/types";
 import { setSoundsEnabled, sounds } from "./sounds";
+import { LOGO_DARK, LOGO_LIGHT } from "./logo";
 
 // ---------------------------------------------------------------------------
 // Platform adapter: Electrobun RPC on desktop, localStorage in the browser
@@ -29,7 +30,11 @@ interface PlatformBridge {
   loadSettings(): Promise<string | null>;
   saveSettings(
     json: string
-  ): Promise<{ togglePanelOk: boolean; captureClipboardOk: boolean } | null>;
+  ): Promise<{
+    togglePanelOk: boolean;
+    captureClipboardOk: boolean;
+    snapWindowOk: boolean;
+  } | null>;
   setWindowSize(width: number, height: number): void;
   pillShrink(width: number, height: number): void;
   pillRestore(): void;
@@ -37,7 +42,11 @@ interface PlatformBridge {
   menuRestore(): void;
   openExternal(url: string): void;
   openDataDir(): void;
+  windowDragStart(): void;
+  windowDragEnd(): void;
   debug(text: string): void;
+  loadScreenshot(name: string): Promise<string | null>;
+  deleteScreenshot(name: string): void;
 }
 
 // CSS px → physical device px, using this window's actual per-monitor scale
@@ -75,7 +84,7 @@ let bridge: PlatformBridge = {
   },
   async saveSettings(json) {
     localStorage.setItem(SETTINGS_LS_KEY, json);
-    return { togglePanelOk: true, captureClipboardOk: true };
+    return { togglePanelOk: true, captureClipboardOk: true, snapWindowOk: true };
   },
   setWindowSize() {},
   pillShrink() {},
@@ -86,9 +95,15 @@ let bridge: PlatformBridge = {
     window.open(url, "_blank", "noopener");
   },
   openDataDir() {},
+  windowDragStart() {},
+  windowDragEnd() {},
   debug(text) {
     console.log("[oxide]", text);
   },
+  async loadScreenshot() {
+    return null; // capture screenshots are desktop-only
+  },
+  deleteScreenshot() {},
 };
 
 async function initDesktopBridge() {
@@ -97,9 +112,16 @@ async function initDesktopBridge() {
     handlers: {
       requests: {},
       messages: {
-        capture: ({ text }: { text: string }) => {
-          addNote(text, state.activeSectionId);
+        capture: ({ text, screenshot }: { text: string; screenshot?: string }) => {
+          const note = addNote(text, state.activeSectionId);
+          // the text lands instantly; the screenshot chip is attached only
+          // once the PNG actually exists on disk
+          if (screenshot) attachScreenshotWhenReady(note.id, screenshot);
           sounds.capture();
+          if (pillMode) {
+            if (settings.expandOnCapture) expandFromPill();
+            else flashPill();
+          }
           toast("Captured");
         },
       },
@@ -129,7 +151,11 @@ async function initDesktopBridge() {
     menuRestore: () => electroview.rpc!.send.menuRestore({}),
     openExternal: (url) => electroview.rpc!.send.openExternal({ url }),
     openDataDir: () => electroview.rpc!.send.openDataDir({}),
+    windowDragStart: () => electroview.rpc!.send.windowDragStart({}),
+    windowDragEnd: () => electroview.rpc!.send.windowDragEnd({}),
     debug: (text) => electroview.rpc!.send.debugLog({ text }),
+    loadScreenshot: (name) => electroview.rpc!.request.loadScreenshot({ name }),
+    deleteScreenshot: (name) => electroview.rpc!.send.deleteScreenshot({ name }),
   };
 }
 
@@ -150,6 +176,9 @@ let hideCompleted = false;
 let view: "list" | "settings" | "info" = "list";
 let pillMode = false;
 let settings: OxideSettings = structuredClone(DEFAULT_SETTINGS);
+const SETTINGS_PAGE_SIZE = 3;
+let archiveVisibleCount = SETTINGS_PAGE_SIZE;
+let trashVisibleCount = SETTINGS_PAGE_SIZE;
 // notes to animate on next render (consumed once)
 const animNew = new Set<string>();
 const animPop = new Set<string>();
@@ -158,6 +187,17 @@ const animPop = new Set<string>();
 const animCheck = new Set<string>();
 
 const uid = () => crypto.randomUUID();
+
+function resetSettingsPagination() {
+  archiveVisibleCount = SETTINGS_PAGE_SIZE;
+  trashVisibleCount = SETTINGS_PAGE_SIZE;
+}
+
+function navigateTo(next: "list" | "settings" | "info") {
+  if (view === "settings" && next !== "settings") resetSettingsPagination();
+  view = next;
+  render();
+}
 
 function seedState(): AppState {
   const welcome: Section = {
@@ -248,7 +288,7 @@ function matchesQuery(note: Note): boolean {
 function visibleNotes(): Note[] {
   const out: Note[] = [];
   for (const section of state.sections) {
-    if (isArchive(section)) continue;
+    if (isHidden(section)) continue;
     if (section.collapsed && !query) continue;
     for (const note of section.notes) {
       if (matchesQuery(note)) out.push(note);
@@ -298,13 +338,40 @@ function toggleDone(ids: string[]) {
 
 function deleteNotes(
   ids: string[],
-  opts: { animate?: boolean; sound?: boolean } = {}
+  opts: { animate?: boolean; sound?: boolean; purge?: boolean } = {}
 ) {
-  const { animate = true, sound = true } = opts;
+  const { animate = true, sound = true, purge = false } = opts;
 
   const doRemove = () => {
-    for (const section of state.sections) {
-      section.notes = section.notes.filter((n) => !ids.includes(n.id));
+    if (purge) {
+      const shots = new Set<string>();
+      for (const section of state.sections) {
+        for (const n of section.notes) {
+          if (ids.includes(n.id) && n.screenshot) shots.add(n.screenshot);
+        }
+        section.notes = section.notes.filter((n) => !ids.includes(n.id));
+      }
+      // remove screenshot files nothing references anymore (duplicates share)
+      for (const name of shots) {
+        if (!allNotes().some((e) => e.note.screenshot === name)) {
+          bridge.deleteScreenshot(name);
+        }
+      }
+    } else {
+      // soft delete: move into the hidden Trash section
+      const trash = trashSection();
+      const moving: Note[] = [];
+      for (const section of state.sections) {
+        if (section === trash) continue;
+        const stay: Note[] = [];
+        for (const n of section.notes) {
+          if (ids.includes(n.id)) moving.push(n);
+          else stay.push(n);
+        }
+        section.notes = stay;
+      }
+      for (const n of moving) n.deletedAt = Date.now();
+      trash.notes.push(...moving);
     }
     for (const id of ids) selected.delete(id);
     if (focusedId && ids.includes(focusedId)) focusedId = null;
@@ -326,6 +393,43 @@ function deleteNotes(
   doRemove();
 }
 
+function toggleImportant(ids: string[]) {
+  const entries = ids.map(findNote).filter(Boolean) as { note: Note; section: Section }[];
+  if (entries.length === 0) return;
+  const markImportant = entries.some((e) => !e.note.important);
+  for (const e of entries) {
+    if (markImportant) e.note.important = true;
+    else delete e.note.important;
+    animPop.add(e.note.id);
+  }
+  sounds.pop();
+  persist();
+  renderListOnly();
+  toast(markImportant ? "Marked important" : "Importance removed");
+}
+
+function duplicateNotes(ids: string[]) {
+  const copies: Note[] = [];
+  for (const section of state.sections) {
+    for (let i = section.notes.length - 1; i >= 0; i--) {
+      const n = section.notes[i];
+      if (!ids.includes(n.id)) continue;
+      const copy: Note = { ...n, id: uid(), createdAt: Date.now() };
+      section.notes.splice(i + 1, 0, copy);
+      copies.push(copy);
+      animNew.add(copy.id);
+    }
+  }
+  if (copies.length === 0) return;
+  selected.clear();
+  for (const c of copies) selected.add(c.id);
+  focusedId = copies[0].id;
+  sounds.pop();
+  persist();
+  renderListOnly();
+  toast(copies.length > 1 ? `Duplicated ${copies.length} notes` : "Duplicated");
+}
+
 function mergeNotes(ids: string[]) {
   if (ids.length < 2) return;
   // keep display order
@@ -334,7 +438,8 @@ function mergeNotes(ids: string[]) {
   if (!first) return;
   first.note.text = ordered.map((e) => e.note.text).join("\n\n");
   first.note.done = false;
-  deleteNotes(ordered.slice(1).map((e) => e.note.id), { animate: false, sound: false });
+  // purge: their text lives on inside the merged note, no need to trash them
+  deleteNotes(ordered.slice(1).map((e) => e.note.id), { animate: false, sound: false, purge: true });
   selected.clear();
   selected.add(first.note.id);
   focusedId = first.note.id;
@@ -343,6 +448,56 @@ function mergeNotes(ids: string[]) {
   persist();
   renderListOnly();
   toast("Merged");
+}
+
+/** Shift the selected notes one slot up or down, hopping section edges. */
+function moveNotesBy(delta: -1 | 1) {
+  const ids = targetIds();
+  if (ids.length === 0) return;
+  const sections = state.sections.filter((s) => !isHidden(s));
+  let moved = false;
+
+  if (delta === -1) {
+    for (let si = 0; si < sections.length; si++) {
+      const notes = sections[si].notes;
+      for (let i = 0; i < notes.length; i++) {
+        const n = notes[i];
+        if (!ids.includes(n.id)) continue;
+        if (i > 0 && !ids.includes(notes[i - 1].id)) {
+          notes.splice(i, 1);
+          notes.splice(i - 1, 0, n);
+          moved = true;
+        } else if (i === 0 && si > 0) {
+          notes.splice(i, 1);
+          sections[si - 1].notes.push(n);
+          i--; // the list shifted under us
+          moved = true;
+        }
+      }
+    }
+  } else {
+    for (let si = sections.length - 1; si >= 0; si--) {
+      const notes = sections[si].notes;
+      for (let i = notes.length - 1; i >= 0; i--) {
+        const n = notes[i];
+        if (!ids.includes(n.id)) continue;
+        if (i < notes.length - 1 && !ids.includes(notes[i + 1].id)) {
+          notes.splice(i, 1);
+          notes.splice(i + 1, 0, n);
+          moved = true;
+        } else if (i === notes.length - 1 && si < sections.length - 1) {
+          notes.splice(i, 1);
+          sections[si + 1].notes.unshift(n);
+          moved = true;
+        }
+      }
+    }
+  }
+
+  if (!moved) return;
+  persist();
+  renderListOnly();
+  scrollFocusedIntoView();
 }
 
 function moveNotes(ids: string[], sectionId: string) {
@@ -366,6 +521,25 @@ function moveNotes(ids: string[], sectionId: string) {
 // managed from the Settings page instead.
 function isArchive(section: Section): boolean {
   return section.title.trim().toLowerCase() === "archive";
+}
+
+// The trash is another hidden section: deleted notes land here instead of
+// being destroyed, and can be restored / purged from Settings.
+function isTrash(section: Section): boolean {
+  return section.title.trim().toLowerCase() === "trash";
+}
+
+function isHidden(section: Section): boolean {
+  return isArchive(section) || isTrash(section);
+}
+
+function trashSection(): Section {
+  let trash = state.sections.find(isTrash);
+  if (!trash) {
+    trash = { id: uid(), title: "Trash", collapsed: true, notes: [] };
+    state.sections.push(trash);
+  }
+  return trash;
 }
 
 function archiveNotes(ids: string[]) {
@@ -443,9 +617,16 @@ function deleteSection(sectionId: string, withNotes: boolean) {
   const idx = state.sections.findIndex((s) => s.id === sectionId);
   if (idx === -1) return;
   const [removed] = state.sections.splice(idx, 1);
-  if (!withNotes && removed.notes.length > 0) {
-    const fallback = state.sections[0] ?? addSection("Notes");
-    fallback.notes.push(...removed.notes);
+  if (removed.notes.length > 0) {
+    if (withNotes) {
+      // soft delete: the section's notes survive in the trash
+      const trash = trashSection();
+      for (const n of removed.notes) n.deletedAt = Date.now();
+      trash.notes.push(...removed.notes);
+    } else {
+      const fallback = state.sections.find((s) => !isHidden(s)) ?? addSection("Notes");
+      fallback.notes.push(...removed.notes);
+    }
   }
   if (state.activeSectionId === sectionId) {
     state.activeSectionId = state.sections[0]?.id ?? "";
@@ -491,6 +672,8 @@ function mdToHtml(text: string): string {
 const app = document.getElementById("app")!;
 const expandedIds = new Set<string>();
 let dragIds: string[] = [];
+let dropPreview: HTMLElement | null = null;
+let dropPreviewKey = "";
 
 function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -501,6 +684,46 @@ function h<K extends keyof HTMLElementTagNameMap>(
   if (className) el.className = className;
   if (text !== undefined) el.textContent = text;
   return el;
+}
+
+function clearDropPreview() {
+  dropPreview?.remove();
+  dropPreview = null;
+  dropPreviewKey = "";
+  document
+    .querySelectorAll<HTMLElement>(".drag-over-top, .drag-over-bottom, .drag-target")
+    .forEach((el) => el.classList.remove("drag-over-top", "drag-over-bottom", "drag-target"));
+}
+
+function showDropPreview(cards: HTMLElement, target: HTMLElement | null, before = false) {
+  if (dragIds.length === 0) return;
+  const position = target?.dataset.id ?? "end";
+  const key = `${position}:${before ? "before" : "after"}`;
+  if (dropPreview && dropPreview.parentElement === cards && dropPreviewKey === key) return;
+
+  clearDropPreview();
+  const preview = h("div", "drop-preview");
+  const marker = h("div", "drop-preview-marker");
+  marker.textContent = "↓";
+  preview.appendChild(marker);
+  const first = dragIds[0] ? findNote(dragIds[0]) : null;
+  const label =
+    dragIds.length > 1
+      ? `Drop ${dragIds.length} notes here`
+      : first
+        ? first.note.text.replace(/\s+/g, " ").trim().slice(0, 100)
+        : "Drop note here";
+  preview.appendChild(h("div", "drop-preview-text", label || "Drop note here"));
+
+  if (target) {
+    if (before) cards.insertBefore(preview, target);
+    else if (target.nextSibling) cards.insertBefore(preview, target.nextSibling);
+    else cards.appendChild(preview);
+  } else {
+    cards.appendChild(preview);
+  }
+  dropPreview = preview;
+  dropPreviewKey = key;
 }
 
 function render() {
@@ -670,9 +893,14 @@ function playCardMoves(prev: Map<string, DOMRect>) {
     const dx = old.left - now.left;
     const dy = old.top - now.top;
     if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+    // glide past the target a touch and settle back, instead of a hard stop
     el.animate(
-      [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
-      { duration: 280, easing: "cubic-bezier(0.32, 0.72, 0, 1)" }
+      [
+        { transform: `translate(${dx}px, ${dy}px)` },
+        { transform: `translate(${-dx * 0.06}px, ${-dy * 0.06}px)`, offset: 0.7 },
+        { transform: "none" },
+      ],
+      { duration: 400, easing: "cubic-bezier(0.3, 0.75, 0.35, 1)" }
     );
   });
 }
@@ -681,17 +909,23 @@ function playCardMoves(prev: Map<string, DOMRect>) {
 function renderListOnly() {
   const list = document.getElementById("list");
   if (!list) return;
+  clearDropPreview();
   const prevRects = captureCardRects();
   list.textContent = "";
 
   let anyVisible = false;
 
   for (const section of state.sections) {
-    if (isArchive(section)) continue; // managed from Settings
+    if (isHidden(section)) continue; // archive + trash are managed from Settings
     const notes = section.notes.filter(matchesQuery);
     if (query && notes.length === 0) continue;
 
     const secEl = h("div", "section" + (section.collapsed && !query ? " collapsed" : ""));
+    if (section.color) {
+      // the category color washes over the whole section (cards, count, caret)
+      secEl.classList.add("tinted-section");
+      secEl.style.setProperty("--sec-tint", section.color);
+    }
 
     // header
     const header = h("div", "section-header");
@@ -720,9 +954,16 @@ function renderListOnly() {
       header.appendChild(input);
       setTimeout(() => input.focus(), 0);
     } else {
-      header.appendChild(h("span", "section-title", section.title));
+      const title = h("span", "section-title", section.title);
+      if (section.color) {
+        title.classList.add("tinted");
+        title.style.background = section.color;
+      }
+      header.appendChild(title);
     }
-    header.appendChild(h("div", "section-rule"));
+    const rule = h("div", "section-rule");
+    if (section.color) rule.style.background = section.color + "66"; // soft tint
+    header.appendChild(rule);
     if (section.notes.length > 0) {
       header.appendChild(
         h("span", "section-count", String(section.notes.filter((n) => !n.done).length))
@@ -767,9 +1008,19 @@ function renderListOnly() {
       showSectionMenu(e.clientX, e.clientY, section);
     });
     // allow dropping notes onto a section header
-    header.addEventListener("dragover", (e) => e.preventDefault());
+    header.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      clearDropPreview();
+      header.classList.add("drag-target");
+    });
+    header.addEventListener("dragleave", (e) => {
+      if (!e.relatedTarget || !header.contains(e.relatedTarget as Node)) {
+        header.classList.remove("drag-target");
+      }
+    });
     header.addEventListener("drop", (e) => {
       e.preventDefault();
+      clearDropPreview();
       if (dragIds.length) moveNotes(dragIds, section.id);
     });
     secEl.appendChild(header);
@@ -783,9 +1034,14 @@ function renderListOnly() {
     }
     // dropping in the gaps / below the last card appends to this section
     // (card drops stopPropagation, so this only fires on empty space)
-    cardsWrap.addEventListener("dragover", (e) => e.preventDefault());
+    cardsWrap.addEventListener("dragover", (e) => {
+      if ((e.target as HTMLElement).closest(".card")) return;
+      e.preventDefault();
+      showDropPreview(cards, null);
+    });
     cardsWrap.addEventListener("drop", (e) => {
       e.preventDefault();
+      clearDropPreview();
       if (dragIds.length) moveNotes(dragIds, section.id);
     });
     cardsWrap.appendChild(cards);
@@ -808,6 +1064,105 @@ function renderListOnly() {
   updatePillLabel();
 }
 
+function timeAgo(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const hrs = Math.floor(m / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const d = Math.floor(hrs / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
+// screenshot preview state (not persisted): which notes show theirs, + cache
+const shotOpen = new Set<string>();
+const shotCache = new Map<string, string>(); // filename → base64 png
+
+/**
+ * The screenshot helper writes its PNG ~1s after the capture note arrives.
+ * Poll until the file exists, then attach it to the note (with the base64
+ * already cached, so the first preview opens instantly).
+ */
+function attachScreenshotWhenReady(noteId: string, name: string, attempt = 0) {
+  bridge.loadScreenshot(name).then((b64) => {
+    const entry = findNote(noteId);
+    if (b64) {
+      if (!entry) {
+        // note got purged while we waited — don't leave an orphan file
+        bridge.deleteScreenshot(name);
+        return;
+      }
+      shotCache.set(name, b64);
+      entry.note.screenshot = name;
+      persist();
+      renderListOnly();
+    } else if (attempt < 10 && entry) {
+      setTimeout(() => attachScreenshotWhenReady(noteId, name, attempt + 1), 600);
+    }
+    // helper failed (or note gone): the note simply stays screenshot-less
+  });
+}
+
+/** Camera chip + optional inline preview for a note's capture screenshot. */
+function renderShot(note: Note): HTMLElement {
+  const wrap = h("div", "card-shot-wrap");
+  const name = note.screenshot!;
+  const open = shotOpen.has(note.id);
+
+  const btn = h("button", "shot-btn" + (open ? " open" : ""));
+  btn.innerHTML =
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>' +
+    `<span>${open ? "Hide source" : "Source window"}</span>`;
+  btn.title = "Screenshot of the window this was captured from";
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (shotOpen.has(note.id)) shotOpen.delete(note.id);
+    else shotOpen.add(note.id);
+    renderListOnly();
+  });
+  wrap.appendChild(btn);
+
+  if (open) {
+    const holder = h("div", "card-shot");
+    const img = document.createElement("img");
+    img.alt = "source window";
+    img.draggable = false;
+    const cached = shotCache.get(name);
+    if (cached) {
+      img.src = "data:image/png;base64," + cached;
+    } else {
+      holder.classList.add("loading");
+      // the PNG may still be being written right after a capture — retry a few
+      // times before declaring it gone
+      const tryLoad = (attempt: number) => {
+        bridge.loadScreenshot(name).then((b64) => {
+          if (b64) {
+            shotCache.set(name, b64);
+            img.src = "data:image/png;base64," + b64;
+            holder.classList.remove("loading");
+          } else if (attempt < 4) {
+            setTimeout(() => tryLoad(attempt + 1), 700);
+          } else if (note.screenshot === name) {
+            // the shot never materialized — drop the dead reference
+            delete note.screenshot;
+            shotOpen.delete(note.id);
+            persist();
+            renderListOnly();
+            toast("Screenshot unavailable");
+          }
+        });
+      };
+      tryLoad(0);
+    }
+    holder.appendChild(img);
+    wrap.appendChild(holder);
+  }
+
+  return wrap;
+}
+
 function renderCard(note: Note, section: Section): HTMLElement {
   const card = h("div", "card");
   card.dataset.id = note.id;
@@ -821,6 +1176,7 @@ function renderCard(note: Note, section: Section): HTMLElement {
       requestAnimationFrame(() => card.classList.toggle("done", note.done))
     );
   }
+  if (note.important) card.classList.add("important");
   if (selected.has(note.id)) card.classList.add("selected");
   if (focusedId === note.id) card.classList.add("focused");
   if (expandedIds.has(note.id)) card.classList.add("expanded");
@@ -878,9 +1234,17 @@ function renderCard(note: Note, section: Section): HTMLElement {
     return card;
   }
 
+  const body = h("div", "card-body");
   const textEl = h("div", "card-text");
   textEl.innerHTML = mdToHtml(note.text);
-  card.appendChild(textEl);
+  body.appendChild(textEl);
+  if (note.screenshot) body.appendChild(renderShot(note));
+  card.appendChild(body);
+
+  // creation time — a small chip that only shows while hovering the card
+  const time = h("div", "card-time", timeAgo(note.createdAt));
+  time.title = new Date(note.createdAt).toLocaleString();
+  card.appendChild(time);
 
   // selection
   card.addEventListener("click", (e) => {
@@ -896,6 +1260,10 @@ function renderCard(note: Note, section: Section): HTMLElement {
         selected.clear();
         for (let i = Math.min(a, b); i <= Math.max(a, b); i++) selected.add(vis[i]);
       }
+    } else if (selected.size === 1 && selected.has(note.id)) {
+      // clicking the only selected note again releases the selection
+      selected.clear();
+      focusedId = null;
     } else {
       selected.clear();
       selected.add(note.id);
@@ -933,14 +1301,16 @@ function renderCard(note: Note, section: Section): HTMLElement {
   card.addEventListener("dragend", () => {
     dragIds = [];
     card.classList.remove("dragging");
-    document
-      .querySelectorAll(".drag-over-top, .drag-over-bottom")
-      .forEach((el) => el.classList.remove("drag-over-top", "drag-over-bottom"));
+    clearDropPreview();
   });
   card.addEventListener("dragover", (e) => {
+    if (dragIds.length === 0 || dragIds.includes(note.id)) return;
     e.preventDefault();
     const rect = card.getBoundingClientRect();
     const before = e.clientY < rect.top + rect.height / 2;
+    const cards = card.closest<HTMLElement>(".cards");
+    if (!cards) return;
+    showDropPreview(cards, card, before);
     card.classList.toggle("drag-over-top", before);
     card.classList.toggle("drag-over-bottom", !before);
   });
@@ -952,7 +1322,7 @@ function renderCard(note: Note, section: Section): HTMLElement {
     e.stopPropagation();
     const rect = card.getBoundingClientRect();
     const before = e.clientY < rect.top + rect.height / 2;
-    card.classList.remove("drag-over-top", "drag-over-bottom");
+    clearDropPreview();
     if (dragIds.length === 0 || dragIds.includes(note.id)) return;
 
     // pull dragged notes out
@@ -995,8 +1365,22 @@ function panelEl(): HTMLElement | null {
 function updatePillLabel() {
   const label = document.getElementById("pill-label");
   if (!label) return;
-  const remaining = allNotes().filter((e) => !e.note.done).length;
+  const remaining = allNotes().filter(
+    (e) => !e.note.done && !isHidden(e.section)
+  ).length;
   label.textContent = `oxidized - ${remaining} ${remaining === 1 ? "task" : "tasks"}`;
+}
+
+/** Pulse the pill so a capture is noticeable while the panel is collapsed. */
+let pillFlashTimer: ReturnType<typeof setTimeout> | null = null;
+function flashPill() {
+  const panel = panelEl();
+  if (!panel || !pillMode) return;
+  panel.classList.remove("pill-flash");
+  void panel.offsetWidth; // restart the animation on rapid captures
+  panel.classList.add("pill-flash");
+  if (pillFlashTimer) clearTimeout(pillFlashTimer);
+  pillFlashTimer = setTimeout(() => panel.classList.remove("pill-flash"), 1600);
 }
 
 function minimizeToPill() {
@@ -1109,8 +1493,7 @@ function renderSettingsView(panel: HTMLElement) {
   const back = h("button", "iconbtn electrobun-webkit-app-region-no-drag", "‹");
   back.title = "Back (Esc)";
   back.addEventListener("click", () => {
-    view = "list";
-    render();
+    navigateTo("list");
   });
   topbar.appendChild(back);
   topbar.appendChild(h("div", "settings-title", "Settings"));
@@ -1153,7 +1536,36 @@ function renderSettingsView(panel: HTMLElement) {
       }
     )
   );
+  const targetSections = state.sections.filter((s) => !isHidden(s));
+  if (targetSections.length > 0) {
+    const active = targetSections.find((s) => s.id === state.activeSectionId);
+    wrap.appendChild(
+      selectRow(
+        "Default section",
+        "Where captures and new notes land",
+        targetSections.map((s) => ({ value: s.id, label: s.title })),
+        (active ?? targetSections[0]).id,
+        (v) => {
+          state.activeSectionId = v;
+          persist();
+          const sec = state.sections.find((s) => s.id === v);
+          if (sec) toast(`New notes go to ${sec.title}`);
+        }
+      )
+    );
+  }
   if (isDesktop) {
+    wrap.appendChild(
+      toggleRow(
+        "Expand on capture",
+        "Pop the window out of the pill when a note is captured",
+        settings.expandOnCapture === true,
+        (v) => {
+          settings.expandOnCapture = v;
+          void saveSettingsNow();
+        }
+      )
+    );
     wrap.appendChild(
       toggleRow(
         "Keep on top",
@@ -1243,28 +1655,114 @@ function renderSettingsView(panel: HTMLElement) {
         }
       )
     );
+    wrap.appendChild(
+      toggleRow(
+        "Screenshot on capture",
+        "Snap the window the text was selected from",
+        settings.captureScreenshot !== false,
+        (v) => {
+          settings.captureScreenshot = v;
+          void saveSettingsNow();
+        }
+      )
+    );
+    wrap.appendChild(
+      shortcutRow(
+        "Snap to position",
+        "Send the panel to its home spot from anywhere",
+        settings.shortcuts.snapWindow,
+        (acc) => {
+          settings.shortcuts.snapWindow = acc;
+          void saveSettingsNow();
+        }
+      )
+    );
+    wrap.appendChild(
+      selectRow(
+        "Snap position",
+        "Where the snap shortcut sends the panel",
+        [
+          { value: "left", label: "Left edge" },
+          { value: "right", label: "Right edge" },
+          { value: "top-left", label: "Top left" },
+          { value: "top-right", label: "Top right" },
+          { value: "bottom-left", label: "Bottom left" },
+          { value: "bottom-right", label: "Bottom right" },
+        ],
+        settings.snapPosition || "left",
+        (v) => {
+          settings.snapPosition = v as OxideSettings["snapPosition"];
+          void saveSettingsNow();
+        }
+      )
+    );
   } else {
     wrap.appendChild(
       h("div", "set-note", "Global shortcuts are available in the desktop app.")
     );
   }
 
+  // group heading with an optional count + clear-all button on the right
+  const groupHeader = (title: string, count: number, clearLabel: string, onClear: () => void) => {
+    const head = h("div", "set-group set-group-row");
+    head.appendChild(h("span", undefined, count > 0 ? `${title} · ${count}` : title));
+    if (count > 0) {
+      const btn = h("button", "mini-btn danger", clearLabel);
+      btn.addEventListener("click", onClear);
+      head.appendChild(btn);
+    }
+    return head;
+  };
+
+  const appendNoteRows = (
+    notes: Note[],
+    visibleCount: number,
+    onLoadMore: () => void,
+    renderRow: (note: Note) => HTMLElement
+  ) => {
+    for (const note of notes.slice(0, visibleCount)) wrap.appendChild(renderRow(note));
+    if (visibleCount < notes.length) {
+      const moreWrap = h("div", "load-more-wrap");
+      const remaining = notes.length - visibleCount;
+      const more = h(
+        "button",
+        "mini-btn load-more",
+        `Load more · ${Math.min(SETTINGS_PAGE_SIZE, remaining)}`
+      );
+      more.title = `${remaining} more ${remaining === 1 ? "item" : "items"}`;
+      more.addEventListener("click", () => {
+        onLoadMore();
+        render();
+      });
+      moreWrap.appendChild(more);
+      wrap.appendChild(moreWrap);
+    }
+  };
+
   // --- archive (hidden from the main list, managed here)
-  wrap.appendChild(h("div", "set-group", "Archive"));
   const archived = state.sections.filter(isArchive).flatMap((s) => s.notes);
+  wrap.appendChild(
+    groupHeader("Archive", archived.length, "Clear archive", () => {
+      // "clear" archives → trash, so nothing is lost by accident
+      deleteNotes(archived.map((n) => n.id), { animate: false });
+      render();
+    })
+  );
   if (archived.length === 0) {
     wrap.appendChild(
       h("div", "set-note", "Empty. Right-click a note → Archive to stash it here.")
     );
   } else {
-    for (const note of archived) {
+    appendNoteRows(archived, archiveVisibleCount, () => {
+      archiveVisibleCount = Math.min(archiveVisibleCount + SETTINGS_PAGE_SIZE, archived.length);
+    }, (note) => {
       const row = h("div", "set-row");
       row.appendChild(h("div", "set-label ellipsis", note.text.replace(/\n+/g, " ")));
 
       const restore = h("button", "mini-btn", "Restore");
       restore.addEventListener("click", () => {
         const target =
-          state.sections.find((s) => !isArchive(s)) ??
+          state.sections.find((s) => !isHidden(s)) ??
           (() => {
             const created: Section = { id: uid(), title: "Notes", collapsed: false, notes: [] };
             state.sections.unshift(created);
@@ -1283,40 +1781,100 @@ function renderSettingsView(panel: HTMLElement) {
       });
       row.appendChild(del);
 
-      wrap.appendChild(row);
-    }
-
-    const clearRow = h("div", "set-row");
-    clearRow.appendChild(h("div", "set-label", `${archived.length} archived`));
-    const clearBtn = h("button", "mini-btn danger", "Clear archive");
-    clearBtn.addEventListener("click", () => {
-      deleteNotes(archived.map((n) => n.id), { animate: false });
-      render();
+      return row;
     });
-    clearRow.appendChild(clearBtn);
-    wrap.appendChild(clearRow);
+  }
+
+  // --- trash (deleted notes land here instead of being destroyed)
+  const trashed = state.sections.filter(isTrash).flatMap((s) => s.notes);
+  wrap.appendChild(
+    groupHeader("Trash", trashed.length, "Empty trash", () => {
+      deleteNotes(trashed.map((n) => n.id), { animate: false, purge: true });
+      render();
+    })
+  );
+  if (trashed.length === 0) {
+    wrap.appendChild(
+      h("div", "set-note", "Empty. Deleted notes end up here so you can restore them.")
+    );
+  } else {
+    appendNoteRows(trashed, trashVisibleCount, () => {
+      trashVisibleCount = Math.min(trashVisibleCount + SETTINGS_PAGE_SIZE, trashed.length);
+    }, (note) => {
+      const row = h("div", "set-row");
+      row.appendChild(h("div", "set-label ellipsis", note.text.replace(/\n+/g, " ")));
+
+      const restore = h("button", "mini-btn", "Restore");
+      restore.addEventListener("click", () => {
+        const target =
+          state.sections.find((s) => !isHidden(s)) ??
+          (() => {
+            const created: Section = { id: uid(), title: "Notes", collapsed: false, notes: [] };
+            state.sections.unshift(created);
+            return created;
+          })();
+        delete note.deletedAt;
+        moveNotes([note.id], target.id);
+        sounds.pop();
+        render();
+      });
+      row.appendChild(restore);
+
+      const del = h("button", "mini-btn danger", "Delete forever");
+      del.addEventListener("click", () => {
+        deleteNotes([note.id], { animate: false, purge: true });
+        render();
+      });
+      row.appendChild(del);
+
+      return row;
+    });
   }
 
   wrap.appendChild(h("div", "set-group", "Storage"));
-  if (isDesktop) {
-    const row = h("div", "set-row");
-    const label = h("div", "set-label", "Data folder");
-    label.appendChild(h("small", undefined, "Notes and settings live here, nowhere else"));
-    row.appendChild(label);
-    const open = h("button", "mini-btn", "Open folder");
-    open.addEventListener("click", () => bridge.openDataDir());
-    row.appendChild(open);
-    wrap.appendChild(row);
-  }
-  wrap.appendChild(
+  const storageCard = h("div", "storage-card");
+  const storageIcon = h("div", "storage-icon");
+  storageIcon.innerHTML =
+    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h4l2 2h5A2.5 2.5 0 0 1 20 7.5v10a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5z"/><path d="M4 8h16"/></svg>';
+  storageCard.appendChild(storageIcon);
+
+  const storageBody = h("div", "storage-body");
+  const storageTitle = h("div", "storage-title-row");
+  storageTitle.appendChild(h("div", "storage-title", isDesktop ? "Local data folder" : "Browser storage"));
+  storageTitle.appendChild(h("span", "storage-badge", "LOCAL ONLY"));
+  storageBody.appendChild(storageTitle);
+  storageBody.appendChild(
     h(
       "div",
-      "set-note",
-      isDesktop
-        ? "Everything is local: %LOCALAPPDATA%\\oxidized\\settings.json and \\blobs\\notes.json. No accounts, no sync, no telemetry."
-        : "Web mode stores notes and settings in this browser's localStorage."
+      "storage-sub",
+      isDesktop ? "Notes, settings and screenshots stay on this device" : "Notes and settings stay in this browser"
     )
   );
+  storageBody.appendChild(
+    h("code", "storage-path", isDesktop ? "%LOCALAPPDATA%\\oxidized" : "localStorage")
+  );
+  storageCard.appendChild(storageBody);
+
+  if (isDesktop) {
+    const open = h("button", "mini-btn", "Open folder");
+    open.classList.add("storage-action");
+    open.addEventListener("click", () => bridge.openDataDir());
+    storageCard.appendChild(open);
+  }
+  wrap.appendChild(storageCard);
+  wrap.appendChild(h("div", "set-note", "No accounts, sync, or telemetry."));
+
+  wrap.appendChild(h("div", "set-group", "About"));
+  const aboutRow = h("div", "set-row");
+  const aboutLabel = h("div", "set-label", "About Oxide");
+  aboutLabel.appendChild(h("small", undefined, `Version ${APP_VERSION} · links & credits`));
+  aboutRow.appendChild(aboutLabel);
+  const aboutOpen = h("button", "mini-btn", "Open");
+  aboutOpen.addEventListener("click", () => {
+    navigateTo("info");
+  });
+  aboutRow.appendChild(aboutOpen);
+  wrap.appendChild(aboutRow);
 
   panel.appendChild(wrap);
 }
@@ -1327,21 +1885,8 @@ function renderSettingsView(panel: HTMLElement) {
 
 const APP_VERSION = "0.1.0";
 const GITHUB_URL = "https://github.com/HologramSteve/oxidized";
-const X_URL = "https://x.com/wqffles";
+const X_URL = "https://x.com/deepseekailover";
 
-// rust-orange rounded square with the app's check-circle motif
-const LOGO_SVG = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="oxg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#e07a3f"/>
-      <stop offset="1" stop-color="#a34a22"/>
-    </linearGradient>
-  </defs>
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#oxg)"/>
-  <circle cx="32" cy="32" r="15" fill="none" stroke="#fff" stroke-width="4" opacity="0.95"/>
-  <polyline points="25.5 32.5 30 37 39 26.5" fill="none" stroke="#fff" stroke-width="4"
-    stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
 
 function renderInfoView(panel: HTMLElement) {
   const topbar = h("div", "topbar");
@@ -1349,8 +1894,7 @@ function renderInfoView(panel: HTMLElement) {
   const back = h("button", "iconbtn electrobun-webkit-app-region-no-drag", "‹");
   back.title = "Back (Esc)";
   back.addEventListener("click", () => {
-    view = "list";
-    render();
+    navigateTo("settings"); // About lives inside Settings now
   });
   topbar.appendChild(back);
   topbar.appendChild(h("div", "settings-title", "About"));
@@ -1360,7 +1904,17 @@ function renderInfoView(panel: HTMLElement) {
 
   const hero = h("div", "info-hero");
   const mark = h("div", "info-mark");
-  mark.innerHTML = LOGO_SVG;
+  for (const [src, cls] of [
+    [LOGO_LIGHT, "logo-light"],
+    [LOGO_DARK, "logo-dark"],
+  ] as const) {
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = "oxidized logo";
+    img.className = cls;
+    img.draggable = false;
+    mark.appendChild(img);
+  }
   hero.appendChild(mark);
   hero.appendChild(h("div", "info-logo", "oxidized"));
   hero.appendChild(h("div", "info-version", `v${APP_VERSION} · open source`));
@@ -1455,6 +2009,33 @@ function segmentedRow(
     seg.appendChild(btn);
   }
   row.appendChild(seg);
+  return row;
+}
+
+function selectRow(
+  title: string,
+  sub: string,
+  options: { value: string; label: string }[],
+  current: string,
+  onChange: (value: string) => void
+): HTMLElement {
+  const row = h("div", "set-row");
+  const label = h("div", "set-label", title);
+  label.appendChild(h("small", undefined, sub));
+  row.appendChild(label);
+
+  const sel = h("select", "select-field");
+  for (const opt of options) {
+    const o = h("option", undefined, opt.label);
+    o.value = opt.value;
+    if (opt.value === current) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.addEventListener("change", () => {
+    onChange(sel.value);
+    sounds.pop();
+  });
+  row.appendChild(sel);
   return row;
 }
 
@@ -1556,7 +2137,7 @@ async function saveSettingsNow() {
   setSoundsEnabled(settings.sounds);
   try {
     const res = await bridge.saveSettings(JSON.stringify(settings));
-    if (res && (!res.togglePanelOk || !res.captureClipboardOk)) {
+    if (res && (!res.togglePanelOk || !res.captureClipboardOk || !res.snapWindowOk)) {
       toast("A shortcut failed to register");
     }
   } catch (err) {
@@ -1608,6 +2189,30 @@ function closeMenu() {
 }
 
 document.addEventListener("click", () => closeMenu());
+// clicking bare space (list gaps, panel padding) releases the selection —
+// but grab-anywhere window drags also end in a click, so only when the
+// mouse didn't actually travel
+let bgDownAt: { x: number; y: number } | null = null;
+window.addEventListener(
+  "mousedown",
+  (e) => {
+    bgDownAt = { x: e.screenX, y: e.screenY };
+  },
+  true
+);
+document.addEventListener("click", (e) => {
+  if (selected.size === 0 && !focusedId) return;
+  const t = e.target as HTMLElement;
+  if (!t?.matches?.(".panel, .list, .section, .cards, .cards-wrap")) return;
+  if (
+    bgDownAt &&
+    Math.abs(e.screenX - bgDownAt.x) + Math.abs(e.screenY - bgDownAt.y) > 4
+  )
+    return;
+  selected.clear();
+  focusedId = null;
+  renderListOnly();
+});
 document.addEventListener("contextmenu", (e) => {
   // close a stale menu when right-clicking empty space
   if (openMenu && !(e.target as HTMLElement).closest(".ctxmenu")) closeMenu();
@@ -1625,6 +2230,8 @@ interface MenuItem {
   danger?: boolean;
   disabled?: boolean;
   checked?: boolean;
+  // small colored circle before the label (color picker entries)
+  swatch?: string;
   sep?: boolean;
   // group: inline header + items on web, a real submenu in the native menu
   children?: MenuItem[];
@@ -1639,7 +2246,15 @@ function showMenu(x: number, y: number, items: MenuItem[]) {
       "div",
       "ctxmenu-item" + (item.danger ? " danger" : "") + (item.disabled ? " disabled" : "")
     );
-    el.appendChild(h("span", undefined, (item.checked ? "✓ " : "") + (item.label ?? "")));
+    const lab = h("span", "ctxmenu-label");
+    if (item.checked) lab.appendChild(document.createTextNode("✓ "));
+    if (item.swatch) {
+      const sw = h("span", "ctxmenu-swatch");
+      sw.style.background = item.swatch;
+      lab.appendChild(sw);
+    }
+    lab.appendChild(document.createTextNode(item.label ?? ""));
+    el.appendChild(lab);
     if (item.kbd) el.appendChild(h("span", "ctxmenu-kbd", item.kbd));
     el.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1713,6 +2328,14 @@ function showNoteMenu(x: number, y: number) {
       action: () => toggleDone(ids),
     },
     {
+      label:
+        first && ids.every((id) => findNote(id)?.note.important)
+          ? "Remove Important"
+          : "Mark as Important",
+      kbd: "Ctrl I",
+      action: () => toggleImportant(ids),
+    },
+    {
       label: expandedIds.has(ids[0]) ? "Collapse" : "Expand",
       action: () => {
         for (const id of ids) {
@@ -1731,13 +2354,14 @@ function showNoteMenu(x: number, y: number) {
         renderListOnly();
       },
     },
+    { label: multi ? `Duplicate ${ids.length} notes` : "Duplicate", kbd: "Ctrl D", action: () => duplicateNotes(ids) },
     { label: "Merge Notes", disabled: !multi, action: () => mergeNotes(ids) },
-    { label: multi ? `Archive ${ids.length} notes` : "Archive", action: () => archiveNotes(ids) },
+    { label: multi ? `Archive ${ids.length} notes` : "Archive", kbd: "Ctrl E", action: () => archiveNotes(ids) },
     { sep: true },
     {
       label: "Move to…",
       children: state.sections
-        .filter((s) => !isArchive(s))
+        .filter((s) => !isHidden(s))
         .map<MenuItem>((s) => ({
           label: s.title,
           disabled: !multi && first?.section.id === s.id,
@@ -1749,6 +2373,20 @@ function showNoteMenu(x: number, y: number) {
   ];
   showMenu(x, y, items);
 }
+
+// light pastel palette — used as a soft chip behind the section title, so it
+// stays readable (dark text on pastel) in both light and dark themes
+const SECTION_COLORS: { name: string; value: string }[] = [
+  { name: "Default", value: "" },
+  { name: "Blush", value: "#ffb3ba" },
+  { name: "Peach", value: "#ffd6a5" },
+  { name: "Lemon", value: "#fdffb6" },
+  { name: "Mint", value: "#caffbf" },
+  { name: "Sky", value: "#9bf6ff" },
+  { name: "Periwinkle", value: "#a0c4ff" },
+  { name: "Lavender", value: "#bdb2ff" },
+  { name: "Rose", value: "#ffc6ff" },
+];
 
 function showSectionMenu(x: number, y: number, section: Section) {
   const items: MenuItem[] = [
@@ -1775,6 +2413,20 @@ function showSectionMenu(x: number, y: number, section: Section) {
         persist();
         renderListOnly();
       },
+    },
+    {
+      label: "Color",
+      children: SECTION_COLORS.map<MenuItem>((c) => ({
+        label: c.name,
+        swatch: c.value || undefined,
+        checked: (section.color ?? "") === c.value,
+        action: () => {
+          if (c.value) section.color = c.value;
+          else delete section.color;
+          persist();
+          renderListOnly();
+        },
+      })),
     },
     { sep: true },
     {
@@ -1825,15 +2477,7 @@ function showAppMenu(x: number, y: number) {
     {
       label: "Settings…",
       action: () => {
-        view = "settings";
-        render();
-      },
-    },
-    {
-      label: "About Oxide",
-      action: () => {
-        view = "info";
-        render();
+        navigateTo("settings");
       },
     },
   ];
@@ -1921,8 +2565,8 @@ document.addEventListener("keydown", (e) => {
   if (pillMode) return;
   if (view !== "list") {
     if (e.key === "Escape") {
-      view = "list";
-      render();
+      // About sits one level under Settings — Esc walks back up
+      navigateTo(view === "info" ? "settings" : "list");
     }
     return;
   }
@@ -1951,6 +2595,12 @@ document.addEventListener("keydown", (e) => {
     selected.clear();
     focusedId = null;
     renderListOnly();
+    return;
+  }
+
+  if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+    e.preventDefault();
+    moveNotesBy(e.key === "ArrowUp" ? -1 : 1);
     return;
   }
 
@@ -1999,6 +2649,15 @@ document.addEventListener("keydown", (e) => {
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
     e.preventDefault();
     mergeNotes(ids);
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+    e.preventDefault();
+    duplicateNotes(ids);
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+    e.preventDefault();
+    toggleImportant(ids);
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "e") {
+    e.preventDefault();
+    archiveNotes(ids);
   }
 });
 
@@ -2052,16 +2711,30 @@ function initGrabAnywhere() {
       release(); // safety: never leave a stale drag class behind
       if (e.button !== 0) return;
       const t = e.target as HTMLElement;
-      if (!t?.matches?.(GRAB_SURFACES)) return;
-      // clicks on a scrollbar land on the element itself but outside its
-      // client box — those must scroll, not move the window
-      if (e.offsetX > t.clientWidth || e.offsetY > t.clientHeight) return;
-      t.classList.add(DRAG_CLASS);
-      grabbed = t;
+      let dragging = false;
+      if (t?.matches?.(GRAB_SURFACES)) {
+        // clicks on a scrollbar land on the element itself but outside its
+        // client box — those must scroll, not move the window
+        if (e.offsetX > t.clientWidth || e.offsetY > t.clientHeight) return;
+        t.classList.add(DRAG_CLASS);
+        grabbed = t;
+        dragging = true;
+      } else if (
+        t?.closest?.("." + DRAG_CLASS) &&
+        !t?.closest?.(".electrobun-webkit-app-region-no-drag")
+      ) {
+        // statically draggable surface (topbar, pill face)
+        dragging = true;
+      }
+      // bun samples the window position during the drag and glides on release
+      if (dragging) bridge.windowDragStart();
     },
     true // capture: runs before Electrobun's own mousedown listener
   );
-  window.addEventListener("mouseup", release);
+  window.addEventListener("mouseup", () => {
+    release();
+    bridge.windowDragEnd(); // bun ignores this when no drag was running
+  });
 }
 
 // ---------------------------------------------------------------------------

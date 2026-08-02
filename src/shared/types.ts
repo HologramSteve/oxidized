@@ -7,6 +7,12 @@ export interface Note {
   text: string;
   done: boolean;
   createdAt: number;
+  // set while the note sits in the Trash section
+  deletedAt?: number;
+  // flagged as important (amber accent in the list)
+  important?: boolean;
+  // filename of the source-window screenshot in blobs/shots (desktop capture)
+  screenshot?: string;
 }
 
 export interface Section {
@@ -14,6 +20,8 @@ export interface Section {
   title: string;
   collapsed: boolean;
   notes: Note[];
+  // category accent color (hex), shown in the section header
+  color?: string;
 }
 
 export interface AppState {
@@ -22,6 +30,15 @@ export interface AppState {
 }
 
 export type DoubleTapKey = "shift" | "ctrl" | "alt";
+
+// preset home spot for the snap-to-position shortcut
+export type SnapPosition =
+  | "left"
+  | "right"
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right";
 
 export interface OxideSettings {
   shortcuts: {
@@ -32,7 +49,11 @@ export interface OxideSettings {
     doubleShiftWindowMs: number;
     // which key is double-tapped to capture
     doubleTapKey: DoubleTapKey;
+    // global shortcut that moves the window to its snap position
+    snapWindow: string;
   };
+  // where the snap shortcut sends the window
+  snapPosition: SnapPosition;
   sounds: boolean;
   // skip a capture when identical text was already captured in the last 30s
   dedupeCaptures: boolean;
@@ -40,6 +61,10 @@ export interface OxideSettings {
   theme: "system" | "light" | "dark";
   // mark notes as done after copying them as a list
   autoCompleteOnCopy: boolean;
+  // pop the window back out of the pill when a capture lands
+  expandOnCapture: boolean;
+  // screenshot the source window when a note is captured (Windows desktop)
+  captureScreenshot: boolean;
   // last user-chosen panel size (logical px), restored on launch
   window?: { width: number; height: number };
 }
@@ -51,12 +76,16 @@ export const DEFAULT_SETTINGS: OxideSettings = {
     doubleShiftCapture: true,
     doubleShiftWindowMs: 400,
     doubleTapKey: "shift",
+    snapWindow: "CommandOrControl+Shift+M",
   },
+  snapPosition: "left",
   sounds: true,
   dedupeCaptures: true,
   alwaysOnTop: true,
   theme: "system",
   autoCompleteOnCopy: true,
+  expandOnCapture: false,
+  captureScreenshot: true,
 };
 
 export type OxideRPC = {
@@ -82,7 +111,16 @@ export type OxideRPC = {
       // persists settings.json AND applies shortcuts live
       saveSettings: {
         params: { json: string };
-        response: { togglePanelOk: boolean; captureClipboardOk: boolean };
+        response: {
+          togglePanelOk: boolean;
+          captureClipboardOk: boolean;
+          snapWindowOk: boolean;
+        };
+      };
+      // read a capture screenshot from blobs/shots as base64 PNG
+      loadScreenshot: {
+        params: { name: string };
+        response: string | null;
       };
     };
     messages: {
@@ -104,16 +142,23 @@ export type OxideRPC = {
       // the panel; menuRestore puts the exact previous frame back
       menuGrow: { width: number; height: number };
       menuRestore: Record<string, never>;
+      // the user started / stopped dragging the window: bun samples the
+      // frame position while dragging and glides it with momentum on release
+      windowDragStart: Record<string, never>;
+      windowDragEnd: Record<string, never>;
       // webview console isn't forwarded in dev — route diagnostics here
       debugLog: { text: string };
+      // remove a capture screenshot that no note references anymore
+      deleteScreenshot: { name: string };
     };
   }>;
   // functions that execute in the webview
   webview: RPCSchema<{
     requests: Record<string, never>;
     messages: {
-      // fired when the global capture shortcut grabs clipboard text
-      capture: { text: string };
+      // fired when the global capture shortcut grabs clipboard text;
+      // screenshot is the (possibly still-being-written) shot filename
+      capture: { text: string; screenshot?: string };
     };
   }>;
 };

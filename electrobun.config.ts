@@ -16,6 +16,11 @@ export default {
     copy: {
       "src/mainview/index.html": "views/mainview/index.html",
       "src/mainview/style.css": "views/mainview/style.css",
+      "assets/icon.ico": "assets/icon.ico",
+    },
+    win: {
+      // installer, shortcuts and taskbar icon for packaged builds
+      icon: "assets/icon.ico",
     },
   },
 };

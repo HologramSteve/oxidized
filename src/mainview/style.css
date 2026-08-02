@@ -34,6 +34,8 @@
   --strike: rgba(0, 0, 0, 0.25);
   --code-bg: rgba(0, 0, 0, 0.055);
   --pill-grip: #b6b6bc;
+  --important: #ff9f0a; /* amber flag */
+  --important-soft: rgba(255, 159, 10, 0.14);
   --radius-panel: 18px;
   --radius-card: 12px;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.04);
@@ -70,6 +72,8 @@
   --strike: rgba(255, 255, 255, 0.32);
   --code-bg: rgba(255, 255, 255, 0.09);
   --pill-grip: #6f6f76;
+  --important: #ffb340;
+  --important-soft: rgba(255, 179, 64, 0.16);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.2);
   --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
@@ -236,6 +240,14 @@ body.web-mode #app {
   font-family: inherit;
 }
 
+/* pastel category chip behind the title — dark text keeps it readable on
+   light pastels in both themes */
+.section-title.tinted {
+  padding: 2px 9px;
+  border-radius: 100px;
+  color: #3c3c3f;
+}
+
 .section-rule {
   flex: 1;
   height: 1px;
@@ -320,27 +332,90 @@ body.web-mode #app {
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05), var(--shadow-card);
 }
 
-.card.drag-over-top::before,
-.card.drag-over-bottom::after {
-  content: "";
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--accent);
+.card.drag-over-top,
+.card.drag-over-bottom {
+  border-color: var(--accent);
+  background: var(--card-bg-hover);
 }
 
-.card.drag-over-top::before {
-  top: -5px;
+.card.drag-over-top {
+  box-shadow: 0 -3px 0 var(--accent), var(--shadow-card-hover);
 }
 
-.card.drag-over-bottom::after {
-  bottom: -5px;
+.card.drag-over-bottom {
+  box-shadow: 0 3px 0 var(--accent), var(--shadow-card-hover);
 }
 
 .card.dragging {
   opacity: 0.45;
+}
+
+/* The placeholder occupies the destination, so the dragged note's landing
+   spot remains obvious even when several cards are close together. */
+.drop-preview {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1.5px dashed var(--accent);
+  border-radius: var(--radius-card);
+  background: var(--card-bg-hover);
+  color: var(--text-dim);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.drop-preview-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.drop-preview-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.section-header.drag-target {
+  padding-left: 8px;
+  padding-right: 8px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* a colored section washes its pastel over the notes too */
+.tinted-section .card:not(.selected):not(.done) {
+  background: color-mix(in srgb, var(--sec-tint) 13%, var(--card-bg));
+}
+
+.tinted-section .card.done:not(.selected) {
+  background: color-mix(in srgb, var(--sec-tint) 7%, var(--card-bg-done));
+}
+
+.tinted-section .section-count {
+  background: color-mix(in srgb, var(--sec-tint) 55%, transparent);
+  color: #3c3c3f;
+  padding: 1px 7px;
+  border-radius: 100px;
+  font-weight: 600;
+}
+
+.tinted-section .section-caret {
+  color: color-mix(in srgb, var(--sec-tint) 65%, var(--text-dim));
 }
 
 .check {
@@ -438,6 +513,129 @@ body.web-mode #app {
 
 .card-text a:hover {
   text-decoration: underline;
+}
+
+/* important: amber accent stripe down the card's left edge */
+.card.important::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--important);
+}
+
+.card.important .check:not(:hover) {
+  border-color: var(--important);
+}
+
+.card.important.done .check {
+  background: var(--done);
+  border-color: var(--done);
+}
+
+.card.important:not(.selected):not(.focused) {
+  box-shadow: 0 0 0 3px var(--important-soft), var(--shadow-card);
+}
+
+/* creation-time chip — hidden until the card is hovered */
+.card-time {
+  position: absolute;
+  top: -7px;
+  right: 10px;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--menu-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 100px;
+  padding: 1px 7px;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.card:hover .card-time {
+  opacity: 1;
+  transform: none;
+}
+
+/* note text + screenshot preview stack */
+.card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-body .card-text {
+  flex: initial;
+}
+
+/* screenshot chip + inline preview */
+.card-shot-wrap {
+  margin-top: 6px;
+}
+
+.shot-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: var(--field-bg);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 100px;
+  padding: 2px 8px;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.card:hover .shot-btn,
+.shot-btn.open {
+  opacity: 1;
+}
+
+.shot-btn:hover {
+  background: var(--field-bg-hover);
+  color: var(--text);
+}
+
+.card-shot {
+  margin-top: 7px;
+}
+
+.card-shot img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-card);
+}
+
+.card-shot.loading {
+  min-height: 48px;
+  border-radius: 8px;
+  background: var(--field-bg);
+  animation: shot-loading 1.1s ease-in-out infinite;
+}
+
+@keyframes shot-loading {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .card-edit {
@@ -552,6 +750,20 @@ body.web-mode #app {
   height: 1px;
   background: var(--hairline);
   margin: 4px 6px;
+}
+
+.ctxmenu-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ctxmenu-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
 
 .ctxmenu-kbd {
@@ -758,6 +970,24 @@ body.web-mode .ctxmenu {
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
 }
 
+/* capture notification: pulse the pill with an accent glow */
+@keyframes pill-flash {
+  0%,
+  100% {
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
+    border-color: var(--panel-border);
+  }
+  50% {
+    box-shadow: 0 0 0 4px var(--accent-soft), 0 0 16px var(--ring),
+      0 1px 5px rgba(0, 0, 0, 0.2);
+    border-color: var(--accent);
+  }
+}
+
+.panel.pill.pill-flash {
+  animation: pill-flash 0.5s ease 3;
+}
+
 /* ----------------------------------------------------------- resize grip */
 
 .resize-grip {
@@ -877,6 +1107,14 @@ body.web-mode .ctxmenu {
   padding: 12px 2px 6px;
 }
 
+/* group heading with an inline clear button (Archive / Trash) */
+.set-group-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .set-label.ellipsis {
   white-space: nowrap;
   overflow: hidden;
@@ -941,6 +1179,102 @@ body.web-mode .ctxmenu {
   user-select: text;
 }
 
+.load-more-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 1px 0 5px;
+}
+
+.mini-btn.load-more {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.mini-btn.load-more:hover {
+  background: var(--field-bg-hover);
+}
+
+/* compact local-storage summary used in Settings */
+.storage-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 7px;
+  padding: 11px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.storage-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.storage-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.storage-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.storage-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.storage-badge {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 100px;
+  background: var(--field-bg);
+  color: var(--text-faint);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+}
+
+.storage-sub {
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.storage-path {
+  display: block;
+  max-width: 100%;
+  margin-top: 7px;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-family: "Cascadia Code", "SF Mono", Consolas, monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.storage-action {
+  align-self: center;
+}
+
 /* toggle switch */
 .switch {
   position: relative;
@@ -973,6 +1307,32 @@ body.web-mode .ctxmenu {
 
 .switch.on::after {
   transform: translateX(14px);
+}
+
+/* dropdown (e.g. snap position, default section) */
+.select-field {
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  background: var(--field-bg);
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--text);
+  flex-shrink: 0;
+  max-width: 46%;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.select-field:hover {
+  background: var(--field-bg-hover);
+}
+
+.select-field:focus {
+  outline: none;
+  border-color: var(--ring);
+  background: var(--field-bg-focus);
 }
 
 /* number field (e.g. double-press window) */
@@ -1095,9 +1455,27 @@ body.web-mode .ctxmenu {
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.18));
 }
 
-.info-mark svg {
+.info-mark img {
   width: 100%;
   height: 100%;
+  display: block;
+  border-radius: 14px;
+  border: 1px solid var(--hairline);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* theme-matched logo: white tile in light mode, black tile in dark mode */
+.info-mark .logo-dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .info-mark .logo-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .info-mark .logo-dark {
+  display: block;
 }
 
 .info-logo {
