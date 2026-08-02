@@ -55,6 +55,23 @@ bun run build
 
 Browser mode works independently of the desktop shell and can be used on other platforms.
 
+## Releases
+
+Releases are published from the GitHub Actions website. The workflow updates the application version, commits it to `main`, creates the release tag, builds macOS, Windows, and Ubuntu artifacts, and publishes the GitHub release.
+
+Before the first release, make sure the repository allows GitHub Actions to write repository contents and that branch protection allows the Actions bot to push the version commit to `main`.
+
+To publish a version:
+
+1. Push the changes to be released to `main`.
+2. Open the repository's **Actions** tab.
+3. Select the **Release** workflow.
+4. Click **Run workflow**.
+5. Select `main` and enter a version such as `0.2.0`.
+6. Click **Run workflow** and wait for the build and publish jobs to finish.
+
+The version must be a new `X.Y.Z` semantic version. The workflow also updates the version shown in the About screen. No local tag or release command is needed.
+
 ## Shortcuts
 
 Global shortcuts are configurable in Settings.
