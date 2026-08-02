@@ -1,7 +1,7 @@
 export default {
   app: {
     name: "Oxide",
-    identifier: "cc.astrolink.oxide",
+    identifier: "nl.stevenrs.oxide",
     version: "0.1.0",
   },
   build: {
