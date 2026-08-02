@@ -1,199 +1,315 @@
-# Oxide Design System
+# Floating Utility UI Display Language
 
-This document describes the visual language, layout rules, interaction patterns, and motion system currently implemented by Oxide.
+This document defines the visual language of the current interface and translates it into a reusable design system for other applications.
 
-It is an implementation-grounded design reference rather than a hypothetical redesign. The source of truth is the current interface in `src/mainview/index.ts` and `src/mainview/style.css`, with platform behavior supplied by `src/bun/index.ts`.
+The source reference is Oxide, a compact floating scratchpad. The rules below intentionally avoid depending on scratchpads, notes, sections, desktop shells, or any other specific product model. They describe how to reproduce the same visual character for a task manager, launcher, inbox, inspector, dashboard, capture tool, or other focused utility.
 
-## 1. Product Character
+The goal is not to copy isolated colors or rounded corners. The goal is to reproduce the relationship between density, hierarchy, state, motion, and restraint that makes the interface feel like the same design family.
 
-Oxide is a small floating scratchpad for ideas, prompts, snippets, and captured text. The interface is designed to sit beside active work rather than become the user's primary workspace.
+## 1. Style Summary
 
-The visual character is:
+The display language is a calm, compact, tactile utility interface.
 
-- Compact and information-dense without feeling cramped.
-- Quiet by default, with emphasis reserved for selection, completion, capture, and danger states.
-- Keyboard-first, with mouse interactions available but deliberately lightweight.
-- Tactile, using soft shadows, small press responses, rounded surfaces, and short confirmation sounds.
-- Local and personal, presented as a private utility rather than a collaborative web product.
-- MacOS-inspired in its use of system colors, pill controls, subtle depth, and spring-like settling motion.
-- Desktop-oriented, shaped like a narrow floating panel instead of a responsive content site.
+It should feel:
 
-The interface should feel like a calm command surface: it is always ready to receive a thought, but it should not compete with the work that produced that thought.
+- Small enough to live beside other work.
+- Dense enough to support frequent scanning.
+- Quiet enough to stay open for long periods.
+- Native enough to feel like part of the operating system.
+- Tactile enough that clicks, selections, and transitions feel physical.
+- Personal and local rather than corporate or dashboard-like.
+- Keyboard-friendly without looking like a terminal.
 
-## 2. Design Principles
+The visual signature is built from:
 
-### Keep capture friction low
+- An opaque rounded panel floating above the environment.
+- A neutral canvas with lighter or darker raised surfaces.
+- System-like typography at a compact `13px` base size.
+- Small rounded fields, cards, menus, and pills.
+- One clear blue action accent.
+- Amber for importance and red for destructive actions.
+- Soft shadows instead of heavy borders.
+- Short transitions with a gentle settling curve.
+- Feedback that stays close to the element being changed.
 
-The main action is adding a note. The composer is always visible at the bottom of the panel, accepts text immediately, grows only as needed, and submits with Enter. The visual treatment is intentionally quieter than a conventional primary call-to-action. The empty composer, not a large button, is the main invitation.
+The interface should communicate competence and calm. It should not look playful, glossy, futuristic, corporate, or heavily branded.
 
-### Use hierarchy instead of decoration
+## 2. Design Intent
 
-Hierarchy comes from surface contrast, spacing, font weight, opacity, and small accent colors. There are no large illustrations, gradients inside the panel, or decorative backgrounds. Pastel colors are reserved for section identity and the About mark.
+### The emotional target
 
-### Make state visible without interrupting flow
+The user should feel that the application is:
 
-Selection, completion, importance, dragging, and capture feedback all have immediate visual feedback. The feedback is mostly local to the affected element: a card changes border and shadow, a check animates, a pill flashes, or a toast appears briefly. Avoid modal interruption for normal note operations.
+- Ready immediately.
+- Easy to trust.
+- Easy to scan.
+- Hard to accidentally damage.
+- Responsive without being frantic.
+- Present without demanding attention.
 
-### Treat the panel as a physical object
+### The primary design tension
 
-The panel has a shell, a shadow, a draggable surface, a resize grip, and a minimized pill form. Motion should preserve the sense that the same object is changing state rather than replacing one screen with another.
+The interface must hold a lot of state in a small space without becoming visually loud. Solve this through hierarchy rather than decoration:
 
-### Prefer reversible actions
+- Use surface contrast before borders.
+- Use spacing before dividers.
+- Use opacity before extra colors.
+- Use local state changes before global notifications.
+- Use type weight before large type.
+- Use motion to explain change, not to decorate the screen.
 
-Deletion moves notes to Trash instead of immediately destroying them. Archive is also separated from the main list. Destructive actions are colored red and separated from routine actions in menus.
+### Anti-goals
 
-### Keep the interface local-first
+Avoid these visual directions when extending the system:
 
-Storage messaging is part of the UI. Settings explicitly identifies local data and shows the desktop data folder or browser `localStorage`. This is communicated as a small supporting detail, not as a marketing banner.
+- Large hero sections inside a utility surface.
+- Full-bleed gradients inside the main panel.
+- Persistent colored toolbars.
+- Thick outlines around every control.
+- Large floating action buttons.
+- Excessive glassmorphism or blur.
+- Neon status colors.
+- Bouncy, elastic, or playful motion.
+- Card layouts with equal visual weight for every element.
+- Dense icon-only controls without tooltips or context.
+- Marketing-style copy inside operational screens.
 
-## 3. Shell and Layout
+## 3. Core Design Grammar
 
-### Native desktop shell
+The style can be understood as seven rules that should remain true regardless of the application domain.
 
-The desktop app uses a frameless, transparent, hidden-title-bar window. The native window is initially `380px` wide by `680px` high and is positioned at approximately `(80px, 80px)` on launch. The webview fills the window.
+### 1. Neutral first
 
-The visible panel is a rounded rectangle inside that transparent window:
+Most of the interface is neutral. The default state should be visually quiet. Color appears when the user needs to understand action, selection, importance, danger, or completion.
 
-- Width: fills the native window.
-- Height: fills the native window.
-- Panel radius: `18px`.
-- Panel border: a faint light or dark translucent line.
-- Panel shadow: `0 12px 40px rgba(0, 0, 0, 0.22)` plus a smaller `0 2px 8px` shadow.
-- Overflow: hidden so the shell clips its internal content and keeps its rounded silhouette.
-- Layout: vertical flex column.
+### 2. Layer by surface
 
-The panel is not visually translucent despite the stylesheet comment describing it as translucent. The panel background is opaque in both themes. Transparency belongs to the native window around the panel so the shadow and rounded edge can read cleanly.
+Use a small number of surfaces with clear depth relationships:
 
-### Browser shell
+1. Environment or backdrop.
+2. Main panel.
+3. Raised content surfaces.
+4. Fields and compact controls.
+5. Floating menus and temporary feedback.
 
-Browser mode places the same panel in the center of a full-page backdrop:
+Do not introduce a new surface color for every component. Reuse the same surfaces so the interface feels coherent.
 
-- Body background: diagonal blue-gray gradient from `#3d5a80` through `#6b8cae` to `#a8bdd0`.
-- Horizontal alignment: centered.
-- Vertical alignment: centered.
-- Panel width: `380px`.
-- Panel height: `min(680px, 92vh)`.
+### 3. Keep controls compact
 
-Browser mode is a preview of the desktop utility rather than a separate responsive website. It preserves the same narrow panel proportions and uses scrolling where the native desktop window would grow.
+Controls should occupy the smallest comfortable footprint. The current reference uses `30px` icon buttons, `8px` to `10px` compact-control radii, and `10px 12px` card padding. Keep labels readable, but do not surround small actions with oversized visual containers.
 
-### Main vertical structure
+### 4. Give state a local visual owner
 
-The full panel follows this order:
+The element that changes should show the change whenever possible:
 
-1. Top bar.
-2. Scrollable list or settings content.
-3. Fixed composer on the list screen.
-4. Resize grip on desktop.
+- A selected item gets the accent border and halo.
+- A completed item changes its own opacity and text treatment.
+- A loading preview pulses in its own region.
+- A menu item owns its hover state.
+- A compact shell flashes when an event arrives while minimized.
 
-The top bar and composer are flex-shrink resistant. The list and settings regions own the available vertical space and scroll independently inside the panel.
+Use a toast only when the result is not otherwise visible or when the user needs confirmation after the element has disappeared.
 
-### Panel dimensions and constraints
+### 5. Use semantic accents
 
-The desktop resize grip permits a minimum window size of approximately `280px` by `360px`. The panel is therefore expected to remain usable at narrow sizes, but it is not designed as a mobile layout.
+Blue, amber, and red have stable meanings. Do not use them as arbitrary decoration:
 
-There are no media queries. Adaptation comes from flex behavior, text clamping, scrolling, maximum control widths, and native window resizing.
+- Blue: active, selected, focused, linked, completed, or primary.
+- Amber: important, pinned, or needs attention without being destructive.
+- Red: destructive, irreversible, or failure.
+- Pastels: user-defined grouping or categorization.
 
-### Draggable surfaces
+### 6. Preserve spatial continuity
 
-The native desktop window can be dragged from non-interactive surfaces:
+When content moves, the interface should show where it came from and where it went. Prefer local transforms, FLIP movement, collapses, and morphs over instant replacement.
 
-- Panel background.
-- List gaps.
-- Section gaps.
-- Empty list space.
-- Composer padding.
-- Settings background.
-- Top bar outside controls.
-- The minimized pill face.
+### 7. Make the shell feel physical
 
-Interactive controls are explicitly excluded from the drag region. This creates a grab-anywhere utility window while preserving normal behavior for inputs, buttons, cards, headers, menus, scrollbars, and the resize grip.
+The panel is an object with an edge, a shadow, a drag surface, and compact states. It should feel like a small tool that can be moved, resized, minimized, and brought back without losing its identity.
 
-## 4. Color System
+## 4. Application Shell
 
-The color system is built around neutral surfaces and a single system-blue action accent. Light and dark themes use different values but preserve the same semantic roles.
+### Baseline form
 
-### Light theme tokens
+The reference form is a narrow floating panel:
 
-| Token | Value | Role |
+| Property | Baseline |
+| --- | --- |
+| Width | `380px` |
+| Height | `680px` |
+| Minimum width | `280px` |
+| Minimum height | `360px` |
+| Panel radius | `18px` |
+| Main layout | Vertical flex column |
+| Panel overflow | Hidden |
+| Content overflow | Internal scrolling |
+| Native shadow | `0 12px 40px rgba(0, 0, 0, 0.22)` plus `0 2px 8px` |
+
+These values are a visual baseline, not a requirement that every app use exactly `380px` by `680px`. Preserve the proportion: narrow, tall, and immediately scannable. For a wider application, increase the dimensions proportionally while keeping the same radius hierarchy and density.
+
+### Panel anatomy
+
+A typical shell contains:
+
+1. A top bar with search, title, navigation, or compact actions.
+2. A flexible scrollable workspace.
+3. A fixed primary input or action area when the product has continuous capture or entry.
+4. An optional resize affordance in the bottom-right corner.
+
+The top bar and fixed action area should not shrink away when the workspace becomes crowded. The workspace owns overflow.
+
+### Desktop presentation
+
+For a desktop or embedded utility:
+
+- Use a frameless or visually frameless surface where the platform permits it.
+- Hide redundant native title chrome if the application already has a custom shell.
+- Keep the panel opaque and use the transparent area around it only for the rounded edge and shadow.
+- Make safe background regions draggable if the platform supports window movement.
+- Exclude controls, fields, scrollbars, cards, and resize handles from drag behavior.
+
+### Browser presentation
+
+For a browser or responsive version:
+
+- Center the panel over a subdued blue-gray backdrop.
+- Preserve the narrow utility proportion.
+- Cap the panel height around `92vh`.
+- Let the internal workspace scroll instead of forcing the page to grow.
+- Keep the same component surfaces and state colors.
+- Gracefully replace unavailable native actions with explanatory copy.
+
+The browser version should feel like the same utility in a different container, not like a separate marketing page.
+
+### Backdrop
+
+When the panel needs a visible browser backdrop, use a restrained diagonal blue-gray gradient:
+
+```css
+background: linear-gradient(
+  135deg,
+  #3d5a80 0%,
+  #6b8cae 50%,
+  #a8bdd0 100%
+);
+```
+
+The gradient belongs outside the panel. Avoid putting this gradient behind individual cards or controls.
+
+## 5. Surface Hierarchy
+
+The interface should have enough contrast to separate layers without making every layer feel like a separate object.
+
+### Surface levels
+
+| Level | Light treatment | Dark treatment | Use |
+| --- | --- | --- | --- |
+| Environment | Blue-gray backdrop or transparent desktop surroundings | Dark surroundings or transparent desktop surroundings | Outside the panel |
+| Panel | `#ececee` | `#1f1f21` | Main shell |
+| Raised surface | `#ffffff` | `#2b2b2e` | Cards, rows, search, composer |
+| Raised hover | `#fdfdfd` | `#313134` | Hover and drop targets |
+| Completed surface | `#f6f6f7` | `#26262a` | De-emphasized completed content |
+| Field surface | `#f1f1f3` | `#3a3a3e` | Selects, switches, compact controls |
+| Field hover | `#e8e8ec` | `#454549` | Hovered fields |
+| Menu surface | `#fafafa` | `#2c2c2f` | Floating menus |
+
+### Surface rules
+
+- Use the panel surface as the quiet background.
+- Use raised surfaces for content that can be selected, edited, or acted upon.
+- Use field surfaces for controls that are secondary to content.
+- Use menu surfaces only for elements floating above the shell.
+- Do not use shadows to compensate for insufficient color contrast.
+- Do not make every surface pure white in light mode or pure black in dark mode.
+
+### Borders and hairlines
+
+Borders are reserved for:
+
+- Panel edges.
+- Interaction states.
+- Menu edges.
+- Screenshot or media boundaries.
+- Thin separators.
+
+Default cards should reserve border space with a transparent border if selected or focused states need to appear without changing layout size. Avoid outlining every default card.
+
+## 6. Color Tokens
+
+Use semantic names in implementation. The values below are the reference palette, while the roles are more important than the exact hex values.
+
+### Light theme
+
+| Token | Value | Meaning |
 | --- | --- | --- |
-| `--panel-bg` | `#ececee` | Main panel surface |
-| `--panel-border` | `rgba(255, 255, 255, 0.55)` | Panel edge highlight |
-| `--card-bg` | `#ffffff` | Cards, search field, composer, settings rows |
-| `--card-bg-hover` | `#fdfdfd` | Hovered cards and drop targets |
-| `--card-bg-done` | `#f6f6f7` | Completed cards |
-| `--card-bg-selected` | `#f3f8ff` | Selected cards |
-| `--focus-border` | `rgba(0, 0, 0, 0.16)` | Keyboard focus border |
-| `--text` | `#1d1d1f` | Primary text |
-| `--text-dim` | `#86868b` | Secondary text, labels, controls |
-| `--text-faint` | `#aeaeb2` | Placeholder text, metadata, quiet hints |
-| `--accent` | `#007aff` | Links, selection, completion, active controls |
-| `--accent-soft` | `rgba(0, 122, 255, 0.12)` | Accent halo and selected background support |
-| `--ring` | `rgba(0, 122, 255, 0.5)` | Input focus ring |
-| `--done` | `#007aff` | Filled completion check |
-| `--danger` | `#d64541` | Delete and irreversible actions |
-| `--hairline` | `rgba(0, 0, 0, 0.09)` | Dividers, thin borders |
-| `--menu-bg` | `#fafafa` | Context menus |
-| `--field-bg` | `#f1f1f3` | Switches, selects, compact controls |
-| `--field-bg-hover` | `#e8e8ec` | Hovered compact controls |
-| `--field-bg-focus` | `#f3f8ff` | Focused compact controls |
-| `--switch-off` | `#d5d5da` | Off switch track |
-| `--check-border` | `#c7c7cc` | Unchecked note circle |
-| `--check-ghost-border` | `#d8d8dc` | Composer's non-interactive check circle |
+| `--canvas` | `#ececee` | Main application canvas or panel |
+| `--surface` | `#ffffff` | Raised content surface |
+| `--surface-hover` | `#fdfdfd` | Hovered raised surface |
+| `--surface-muted` | `#f6f6f7` | Completed or de-emphasized surface |
+| `--surface-selected` | `#f3f8ff` | Selected surface |
+| `--surface-field` | `#f1f1f3` | Compact input/control surface |
+| `--surface-field-hover` | `#e8e8ec` | Hovered compact control |
+| `--surface-field-focus` | `#f3f8ff` | Focused compact control |
+| `--surface-menu` | `#fafafa` | Floating menu surface |
+| `--text` | `#1d1d1f` | Primary content text |
+| `--text-secondary` | `#86868b` | Supporting text and labels |
+| `--text-muted` | `#aeaeb2` | Placeholder, metadata, and quiet hints |
+| `--accent` | `#007aff` | Primary active state |
+| `--accent-soft` | `rgba(0, 122, 255, 0.12)` | Accent wash and halo |
+| `--focus-ring` | `rgba(0, 122, 255, 0.5)` | Focus outline |
+| `--danger` | `#d64541` | Destructive action |
+| `--warning` | `#ff9f0a` | Important or attention state |
+| `--hairline` | `rgba(0, 0, 0, 0.09)` | Thin border or divider |
 | `--scroll-thumb` | `rgba(0, 0, 0, 0.18)` | Scrollbar thumb |
-| `--strike` | `rgba(0, 0, 0, 0.25)` | Completed-note strikethrough |
-| `--code-bg` | `rgba(0, 0, 0, 0.055)` | Inline code background |
-| `--pill-grip` | `#b6b6bc` | Minimized pill grip dot |
-| `--important` | `#ff9f0a` | Important-note amber |
-| `--important-soft` | `rgba(255, 159, 10, 0.14)` | Important-note halo |
+| `--code-surface` | `rgba(0, 0, 0, 0.055)` | Inline code |
 
-### Dark theme tokens
+### Dark theme
 
-| Token | Value | Role |
+| Token | Value | Meaning |
 | --- | --- | --- |
-| `--panel-bg` | `#1f1f21` | Main panel surface |
-| `--panel-border` | `rgba(255, 255, 255, 0.09)` | Panel edge |
-| `--card-bg` | `#2b2b2e` | Cards, search field, composer, settings rows |
-| `--card-bg-hover` | `#313134` | Hovered cards and drop targets |
-| `--card-bg-done` | `#26262a` | Completed cards |
-| `--card-bg-selected` | `#263140` | Selected cards |
-| `--focus-border` | `rgba(255, 255, 255, 0.22)` | Keyboard focus border |
-| `--text` | `#f2f2f4` | Primary text |
-| `--text-dim` | `#9a9aa0` | Secondary text, labels, controls |
-| `--text-faint` | `#6f6f76` | Placeholder text, metadata, quiet hints |
-| `--accent` | `#0a84ff` | Links, selection, completion, active controls |
-| `--accent-soft` | `rgba(10, 132, 255, 0.2)` | Accent halo and selected background support |
-| `--ring` | `rgba(10, 132, 255, 0.55)` | Input focus ring |
-| `--done` | `#0a84ff` | Filled completion check |
-| `--danger` | `#ff5f57` | Delete and irreversible actions |
-| `--hairline` | `rgba(255, 255, 255, 0.1)` | Dividers, thin borders |
-| `--menu-bg` | `#2c2c2f` | Context menus |
-| `--field-bg` | `#3a3a3e` | Switches, selects, compact controls |
-| `--field-bg-hover` | `#454549` | Hovered compact controls |
-| `--field-bg-focus` | `#2b3a4d` | Focused compact controls |
-| `--switch-off` | `#48484d` | Off switch track |
-| `--check-border` | `#5a5a60` | Unchecked note circle |
-| `--check-ghost-border` | `#4a4a4f` | Composer's non-interactive check circle |
+| `--canvas` | `#1f1f21` | Main application canvas or panel |
+| `--surface` | `#2b2b2e` | Raised content surface |
+| `--surface-hover` | `#313134` | Hovered raised surface |
+| `--surface-muted` | `#26262a` | Completed or de-emphasized surface |
+| `--surface-selected` | `#263140` | Selected surface |
+| `--surface-field` | `#3a3a3e` | Compact input/control surface |
+| `--surface-field-hover` | `#454549` | Hovered compact control |
+| `--surface-field-focus` | `#2b3a4d` | Focused compact control |
+| `--surface-menu` | `#2c2c2f` | Floating menu surface |
+| `--text` | `#f2f2f4` | Primary content text |
+| `--text-secondary` | `#9a9aa0` | Supporting text and labels |
+| `--text-muted` | `#6f6f76` | Placeholder, metadata, and quiet hints |
+| `--accent` | `#0a84ff` | Primary active state |
+| `--accent-soft` | `rgba(10, 132, 255, 0.2)` | Accent wash and halo |
+| `--focus-ring` | `rgba(10, 132, 255, 0.55)` | Focus outline |
+| `--danger` | `#ff5f57` | Destructive action |
+| `--warning` | `#ffb340` | Important or attention state |
+| `--hairline` | `rgba(255, 255, 255, 0.1)` | Thin border or divider |
 | `--scroll-thumb` | `rgba(255, 255, 255, 0.22)` | Scrollbar thumb |
-| `--strike` | `rgba(255, 255, 255, 0.32)` | Completed-note strikethrough |
-| `--code-bg` | `rgba(255, 255, 255, 0.09)` | Inline code background |
-| `--pill-grip` | `#6f6f76` | Minimized pill grip dot |
-| `--important` | `#ffb340` | Important-note amber |
-| `--important-soft` | `rgba(255, 179, 64, 0.16)` | Important-note halo |
+| `--code-surface` | `rgba(255, 255, 255, 0.09)` | Inline code |
 
-### Semantic color rules
+### Semantic color behavior
 
-- Blue means active, selected, focused, completed, or actionable.
-- Amber means important but not destructive.
-- Red means destructive or irreversible.
-- Neutral grays carry most of the interface and should remain visually quiet.
-- Pastels belong to user-defined section identity, not global status.
-- White or near-white surfaces in light mode and charcoal surfaces in dark mode provide the main layer separation.
+Color should communicate behavior consistently:
 
-### Section color palette
+| Meaning | Treatment |
+| --- | --- |
+| Default | Neutral surface and primary text |
+| Secondary | Dim text or field surface |
+| Selected | Accent border, accent-soft halo, cool accent-tinted surface |
+| Focused | Focus ring or neutral focus border with a small halo |
+| Completed | Lower opacity, muted surface, muted text, optional strike |
+| Important | Amber edge, marker, or soft amber halo |
+| Destructive | Danger text and separated menu action |
+| Disabled | Faint text, reduced contrast, no pointer response |
+| Loading | Existing field surface with restrained opacity pulse |
+| Drop target | Dashed accent border or accent line at destination |
 
-Section colors are intentionally bright, soft pastels. They appear as a pill behind the uppercase section title, a softened rule, a count badge, a caret tint, and a subtle wash over the section's cards.
+### Pastel grouping colors
 
-| Name | Hex |
+Pastels are optional and should represent user-defined groups, categories, or workspaces. They should not replace semantic status colors.
+
+| Name | Value |
 | --- | --- |
 | Blush | `#ffb3ba` |
 | Peach | `#ffd6a5` |
@@ -204,689 +320,826 @@ Section colors are intentionally bright, soft pastels. They appear as a pill beh
 | Lavender | `#bdb2ff` |
 | Rose | `#ffc6ff` |
 
-Pastel section text is always dark (`#3c3c3f`) so the color remains readable in both application themes. Cards use `color-mix()` with approximately 13% section tint for active cards and 7% tint for completed cards.
+Apply a pastel primarily as:
 
-## 5. Typography
+- A small title pill.
+- A softened divider.
+- A count badge.
+- A subtle background wash over related content.
 
-### Font family
+Keep text on pastel surfaces dark, approximately `#3c3c3f`, so the grouping remains readable in both themes.
 
-The interface uses a system-first sans-serif stack:
+## 7. Typography
+
+### Font personality
+
+Use a system-first sans-serif stack:
 
 ```css
--apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, sans-serif
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, sans-serif;
 ```
 
-This supports the native utility character of the app and avoids loading a custom web font. Rendering uses antialiasing and a compact base size.
+The system should feel native on the platform where it runs. Avoid decorative display fonts, condensed headline faces, and custom fonts that make a small utility feel like a brand campaign.
 
-### Type scale
+### Baseline type scale
 
-| Element | Size | Weight / treatment | Notes |
-| --- | --- | --- | --- |
-| Base UI | `13px` | Normal | Global body size |
-| Note text | Inherits `13px` | Normal | Line height `1.45` |
-| Section title | `11px` | `600`, uppercase | Letter spacing `0.02em` |
-| Section count | `10px` | Normal | Faint unless tinted |
-| Search and composer | Inherits `13px` | Normal | Uses system control typography |
-| Context menu item | `12.5px` | Normal | Compact but readable |
-| Context menu shortcut | `10.5px` | Normal | Faint keyboard hint |
-| Metadata time chip | `9.5px` | `500` | Appears only on hover |
-| Settings supporting copy | `11px` | Normal | Faint secondary line |
-| Storage subtitle | `10.5px` | Normal | Tight line height |
-| Storage badge | `8px` | `700`, uppercase | Letter spacing `0.07em` |
-| Minimized pill label | `12px` | `500`, lowercase | Shows task count |
-| About wordmark | `21px` | `700`, lowercase | Slight negative letter spacing |
-| About description | `12px` | Normal | Line height `1.55` |
-| Inline code | `11.5px` | Monospace | Cascadia Code, SF Mono, or Consolas |
+| Role | Size | Weight | Line height | Treatment |
+| --- | --- | --- | --- | --- |
+| Primary UI and body | `13px` | `400` | `1.4` to `1.45` | Default content |
+| Strong inline text | `13px` | `650` | Inherited | Bold emphasis |
+| Group label | `11px` | `600` | Normal | Uppercase, `0.02em` spacing |
+| Supporting text | `11px` | `400` | `1.4` to `1.5` | Secondary description |
+| Metadata | `9.5px` to `10.5px` | `500` | Normal | Hover-only or supporting detail |
+| Compact menu item | `12.5px` | `400` | Normal | Action label |
+| Menu shortcut | `10.5px` | `400` | Normal | Faint keyboard hint |
+| Compact pill label | `12px` | `500` | Normal | Lowercase status summary |
+| Small brand title | `21px` | `700` | Normal | Optional About or identity mark |
+| Inline code | `11.5px` | `400` | Inherited | Monospace |
 
-### Text behavior
+### Type rules
 
-- Section labels are uppercase and compact to read as navigation landmarks.
-- The product wordmark is lowercase in the About screen and minimized pill.
-- Note text can contain a Markdown-lite subset: bold, italics, inline code, and links.
-- Notes are clamped to four lines by default to keep the list scannable.
-- Expanded notes remove the clamp and reveal the full content in place.
-- Completed note text becomes faint and receives a line-through rather than being removed immediately.
-- Long text breaks at word boundaries where possible and does not force the panel wider.
-- Storage paths are displayed in a monospace face and ellipsized on one line.
+- Use small uppercase labels as structural landmarks, not as primary content.
+- Keep primary content near `13px` so many items can coexist in a narrow panel.
+- Use weight changes more often than size changes to establish emphasis.
+- Keep secondary text clearly subordinate through color and size, not through extreme opacity.
+- Use lowercase for compact product labels or status pills when a softer utility tone is desired.
+- Use a monospace face only for code, keyboard values, paths, IDs, or technical strings.
+- Keep line lengths constrained inside cards so a long item does not dominate the entire panel.
 
-## 6. Spacing, Shape, and Depth
+### Text density
 
-The current system uses handcrafted values rather than a formal spacing scale. The repeated values still form a recognizable rhythm.
+The style is information-dense but not typographically compressed. Preserve breathing room through:
+
+- `1.45` line height for primary content.
+- At least `10px 12px` internal card padding.
+- Short supporting descriptions rather than paragraph-length explanations.
+- Four-line clamping for list content when a detail view is not necessary.
+- Ellipsis for paths and single-line utility metadata.
+
+## 8. Spacing and Geometry
+
+The spacing system is handcrafted but consistent. It favors small increments and avoids large empty regions inside the utility panel.
 
 ### Spacing rhythm
 
-| Pattern | Measurement |
+| Use | Baseline |
 | --- | --- |
-| Top bar outer padding | `12px 12px 8px` |
-| Top bar control gap | `8px` |
-| Search field internal gap | `6px` |
-| Search field padding | `7px 10px` |
-| List padding | `4px 12px 8px` |
-| Section header padding | `10px 2px 6px` |
-| Gap between note cards | `7px` |
+| Panel inset | `12px` |
+| Top bar vertical padding | `8px` to `12px` |
+| Main control gap | `8px` |
+| Small internal gap | `4px` to `6px` |
+| Card-to-card gap | `7px` |
 | Card padding | `10px 12px` |
-| Card content gap | `9px` |
-| Composer outer padding | `8px 12px 12px` |
-| Composer internal padding | `9px 12px` |
-| Settings outer padding | `4px 12px 12px` |
+| Settings row gap | `7px` |
 | Settings row padding | `10px 12px` |
-| Settings row gap | `10px` |
-| Settings row separation | `7px` |
-| Context menu outer padding | `4px` |
-| Context menu item padding | `6px 10px` |
-| Context menu item gap | `18px` |
-| Empty state padding | `28px 20px` |
+| Menu item padding | `6px 10px` |
+| Composer padding | `8px 12px 12px` |
+| Empty-state padding | `28px 20px` |
 
-The overall rhythm is based on small increments of approximately 4px, 6px, 7px, 8px, 9px, 10px, and 12px. The layout feels dense because vertical gaps are small, while cards retain enough internal padding to remain individually legible.
+Use the following mental scale when adding new layouts:
 
-### Radii
-
-| Element | Radius |
-| --- | --- |
-| Main panel | `18px` |
-| Minimized pill | `22px` |
-| Note cards | `12px` |
-| Search field | `10px` |
-| Icon buttons | `9px` |
-| Settings rows | `12px` through `var(--radius-card)` |
-| Compact controls | `8px` |
-| Context menu | `11px` |
-| Menu items | `7px` |
-| Pills and badges | `100px` |
-| Screenshot preview | `8px` |
-| Completion circle | `50%` |
-
-Rounded geometry is used consistently. Cards are soft rectangles, controls are smaller soft rectangles, and status metadata uses full pills. The radius hierarchy makes the panel shell feel larger and calmer than its child controls.
-
-### Shadows
-
-Card depth is deliberately restrained:
-
-```css
---shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06),
-               0 1px 1px rgba(0, 0, 0, 0.04);
-
---shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.1);
+```text
+4  6  7  8  9  10  12  16  20  28
 ```
 
-The dark theme increases shadow opacity rather than introducing a different visual model. Hover raises a card by `1px` and increases the shadow. Selection adds a blue halo around the card. Important notes add a soft amber halo unless they are already selected or focused.
+The unusual `7px` card gap is part of the reference density. It keeps adjacent cards visually separated without producing a loose dashboard layout.
 
-## 7. Main List Screen
+### Radius hierarchy
 
-The list screen is the primary workspace and should remain visually stable while the user captures, scans, selects, and moves notes.
+| Element | Baseline radius |
+| --- | --- |
+| Main shell | `18px` |
+| Compact shell or pill | `22px` |
+| Content card | `12px` |
+| Search or larger field | `10px` |
+| Icon button | `9px` |
+| Compact field | `8px` |
+| Menu item | `7px` |
+| Screenshot or media preview | `8px` |
+| Status badge | `999px` or `100px` |
+| Circular status control | `50%` |
 
-### Top bar
+The shell radius should always be larger than the card radius, and the card radius should always be larger than the compact-control radius. This establishes nested scale without requiring more decoration.
 
-The top bar contains:
+### Width behavior
 
-- A flexible search field.
-- An application menu icon button using the `...` glyph.
-- A minimize-to-pill icon button using the `-` glyph.
+- Let the main content area fill the panel.
+- Keep compact controls at their intrinsic width where possible.
+- Cap right-side selects around `46%` of a settings row so labels retain room.
+- Allow text bodies to shrink with `min-width: 0` and break long content.
+- Keep menus at least `190px` wide so labels and keyboard hints do not collide.
 
-The search field is a white or charcoal card-like surface with a `10px` radius and a small inline SVG magnifier. It has the same shadow language as note cards. Placeholder text is faint and the icon uses the faint text color.
+## 9. Elevation and Depth
 
-Icon buttons are `30px` square, use a `9px` radius, and have a card surface plus small shadow. Their default color is dim text. Hover changes the icon to primary text and raises the shadow. The pinned state uses accent text and an accent-soft background.
+The reference uses low, soft elevation. Shadows should be felt more than seen.
 
-The top bar is also a drag surface on desktop except for the controls.
+### Card elevation
 
-### Sections
+```css
+--shadow-card:
+  0 1px 2px rgba(0, 0, 0, 0.06),
+  0 1px 1px rgba(0, 0, 0, 0.04);
 
-Each visible section has:
+--shadow-card-hover:
+  0 2px 8px rgba(0, 0, 0, 0.10);
+```
 
-- A right-facing caret that rotates when expanded.
-- An uppercase title.
-- A flexible horizontal divider.
-- An optional count of incomplete notes.
-- A stack of cards.
+In dark mode, increase opacity rather than adding a bright outline. A dark surface can remain visually elevated through shadow and small tonal differences.
 
-Section headers are clickable to collapse or expand. Double-clicking directly on the title enters inline rename mode. Right-clicking opens section actions.
+### Elevation rules
 
-The count reports incomplete notes, not total notes. When a section has a pastel color, the count becomes a dark-text pill with a stronger tint and the divider receives a translucent version of the same color.
+- The panel shadow is larger and softer than card shadows.
+- Cards use a small resting shadow.
+- Hover increases shadow and moves the card up `1px`.
+- Selected cards use an accent halo in addition to normal elevation.
+- Floating menus use a broad shadow because they sit above the panel hierarchy.
+- Temporary toasts use a dark shadow and high-contrast content.
+- Avoid multiple stacked shadows on the same element unless the extra shadow represents a semantic halo.
 
-Collapsed sections preserve the header and animate the card region to zero height. When a search query exists, collapsed sections are effectively expanded for matching content so search results remain discoverable.
+## 10. Component Recipes
 
-### Note cards
+These recipes are app-agnostic. Replace "item" with the content object relevant to the product.
 
-A note card is a horizontal flex row:
+### 10.1 Floating panel
 
-1. A circular completion control.
-2. A flexible text body.
-3. Optional screenshot content inside the body.
-4. A hover-only creation-time chip positioned above the top-right edge.
+Use a vertical flex container with:
 
-Cards use a white or charcoal surface, a `12px` radius, `10px 12px` padding, and a small shadow. The content gap is `9px`. Cards are not borders by default; a transparent `1.5px` border reserves space for interaction states.
+- Opaque theme-aware canvas.
+- `18px` radius.
+- One subtle border.
+- Large soft shadow.
+- Hidden overflow.
+- Scroll ownership delegated to the workspace.
 
-Cards support click selection, double-click editing, right-click menus, drag and drop, keyboard focus, and inline expansion. These behaviors are intentionally layered onto the same card surface instead of introducing separate toolbar controls.
+The panel is the visual parent of every other surface. Child surfaces should not compete with it through stronger shadows or larger radii.
 
-### Composer
+### 10.2 Top bar
 
-The composer remains fixed to the bottom of the list view. It visually resembles another card but is slightly more functional:
+Use a compact row with `8px` gaps and `12px` horizontal padding. A flexible search or title surface should take the available width. Icon buttons should be `30px` square.
 
-- Outer padding: `8px 12px 12px`.
-- Inner surface: card background with `12px` radius.
-- Inner padding: `9px 12px`.
-- Leading ghost completion circle: `16px` diameter, non-interactive.
-- Textarea: transparent, borderless, one row by default.
-- Maximum height: `120px`.
-- Enter submits.
-- Shift+Enter inserts a newline.
+Top-bar actions should be recognizable without large labels. Use inline SVGs or simple glyphs. Give each action a title or accessible name.
 
-When focused, the composer receives a translucent blue border. The focus treatment is intentionally contained within the composer instead of adding a large outer glow.
+States:
 
-### Empty states
+- Default: card surface, dim icon, small shadow.
+- Hover: primary icon color, slightly stronger shadow.
+- Active: tiny scale compression.
+- Selected or pinned: accent color and accent-soft surface.
+- Focused: visible focus ring.
 
-Empty list content is centered, faint, and short. The default message invites the user to type below. Search-empty content explicitly says no notes match the query. Empty states do not include illustrations or large buttons.
+### 10.3 Search field
 
-## 8. Note State Language
+Use a raised surface with:
+
+- `10px` radius.
+- `7px 10px` padding.
+- A `13px` or smaller inline icon.
+- `6px` icon-to-text gap.
+- Transparent native input.
+- Faint placeholder text.
+
+Search should look like a calm part of the shell, not like a dominant dashboard filter bar.
+
+### 10.4 Group header
+
+Use a single horizontal line containing:
+
+1. A small caret or disclosure icon.
+2. An uppercase group label.
+3. A flexible hairline rule.
+4. An optional muted count.
+
+The header should be quieter than the content below it but more structured than empty space. A user-defined color can appear as a small pill behind the label and a softened rule.
+
+States:
+
+- Expanded: caret points into the content.
+- Collapsed: caret rotates and content height closes.
+- Drop target: accent-soft wash.
+- Renaming: small field using the same label typography.
+
+### 10.5 Content card
+
+Use a `12px` radius, `10px 12px` padding, a small shadow, and a transparent reserved border. The usual anatomy is:
+
+- A leading status or selection control.
+- A flexible primary content body.
+- Optional metadata or inline media.
+
+Do not add a visible toolbar to every card. Keep secondary actions in a context menu, keyboard shortcut, or hover-only affordance.
+
+States should be easy to distinguish without changing the card's layout:
+
+- Default: neutral raised surface.
+- Hover: `translateY(-1px)` and stronger shadow.
+- Selected: accent border, blue-tinted surface, `3px` accent-soft halo.
+- Focused: neutral border and small focus halo.
+- Completed: muted opacity and surface; content becomes faint.
+- Important: amber edge stripe and soft amber halo.
+- Dragging: reduced opacity.
+- Drop target: accent line or dashed placeholder.
+
+### 10.6 Leading status control
+
+A circular `16px` status control is a signature element for item lists. It should be visually light when empty and fill with the blue action color when complete.
+
+Use an SVG checkmark with stroke-dash animation when the control represents completion. The control should have a small press scale, but the press should never shift neighboring content.
+
+### 10.7 Composer or persistent input
+
+When the product has continuous entry, keep the input fixed at the bottom of the panel. Make it resemble a content card rather than a large form:
+
+- Card surface.
+- `12px` radius.
+- `9px 12px` internal padding.
+- Transparent textarea or input.
+- One row by default.
+- Auto-grow only to a bounded maximum, approximately `120px`.
+- Focus indicated by a translucent blue border.
+
+The placeholder should describe the action in plain language. Do not add a large "Add" button unless the interaction cannot be inferred from the field.
+
+### 10.8 Settings row
+
+Use a repeated raised row pattern:
+
+- Main label on the left.
+- Optional one-line description beneath it.
+- Control aligned to the right.
+- `10px 12px` padding.
+- `7px` vertical spacing between rows.
+
+Supported controls include:
+
+- A `36px` by `22px` pill switch.
+- An `8px` rounded select field.
+- A segmented control with a field-colored track and selected raised segment.
+- A compact number field.
+- A shortcut recorder with a minimum width around `130px`.
+- A compact action button with `6px 10px` padding.
+
+Settings should feel like the same product as the main workspace. Do not introduce a separate form design system.
+
+### 10.9 Compact switch
+
+Use a pill track with a white circular knob:
+
+- Track: `36px` by `22px`.
+- Knob: `18px` diameter.
+- Knob inset: `2px`.
+- Off track: muted neutral.
+- On track: completion/accent blue.
+- Transition: approximately `200ms` with the shared settling curve.
+
+The knob may stretch slightly while pressed to create a tactile response.
+
+### 10.10 Segmented control
+
+Use a field-colored track with `2px` internal padding and `2px` between segments. Each segment uses a `6px` radius and compact `4px 9px` padding. The selected segment uses the raised surface, primary text, and a small shadow. Unselected segments use secondary text.
+
+Do not use saturated fills for every segment. Only the selected segment should appear raised.
+
+### 10.11 Context menu
+
+Use a floating surface with:
+
+- Minimum width around `190px`.
+- `11px` radius.
+- `4px` outer padding.
+- `6px 10px` item padding.
+- `7px` item radius.
+- One-pixel hairline border.
+- Broad soft shadow.
+
+Menu items should align labels and keyboard hints in two columns. Use accent-soft hover, faint disabled text, and red only for destructive actions.
+
+Group menu entries with small uppercase sublabels and thin separators. Avoid icons on every row unless the product genuinely needs them.
+
+### 10.12 Toast
+
+Use a short-lived dark pill centered near the bottom of the panel:
+
+- `12px` text.
+- `500` weight.
+- `7px 16px` padding.
+- Full pill radius.
+- High contrast white text.
+- A `180ms` fade and small upward settle.
+
+Toasts are for confirmation, recovery, or asynchronous results. They should not be the only way the user can understand a persistent state.
+
+### 10.13 Compact or minimized state
+
+A utility panel may collapse into a pill or capsule:
+
+- Around `160px` by `44px` as a baseline.
+- `22px` radius.
+- One small grip or status dot.
+- One lowercase status label.
+- Minimal shadow that fits inside the compact window.
+
+The compact state should be a morph of the full panel. Hide secondary content with opacity and pointer changes, then reveal the compact face. Do not make the minimized form look like an unrelated badge.
+
+## 11. State Language
+
+Every interactive component should define how it looks in each relevant state before implementation.
 
 ### Default
 
-The default card is a neutral surface with a small shadow and normal text. The card is visually quiet so a list with many notes does not become noisy.
+Use the neutral surface, normal text, minimal shadow, and no accent color. Default state is the baseline against which all feedback is judged.
 
 ### Hover
 
-Hover raises the card by `1px`, increases the shadow, reveals the creation-time chip, and increases screenshot chip visibility. The card does not change its fill color dramatically.
+Use a small elevation increase, a one-pixel upward movement where appropriate, and a modest surface or text-color change. Hover should be noticeable but never louder than selection.
+
+### Focus
+
+Use a visible focus ring or border. The reference uses a translucent blue ring for form controls and a neutral focus border for keyboard-focused cards. Focus must remain visible in both themes.
+
+### Active or pressed
+
+Use a quick scale reduction, generally between `0.86` and `0.97` depending on the control. Restore the original scale immediately after release. Never use a press transform that changes layout flow.
 
 ### Selected
 
-Selected cards receive:
-
-- Accent border.
-- Cool blue selected background.
-- A `3px` accent-soft outer halo.
-- Hover-level shadow.
-
-Selection is the primary multi-action signal. There is no separate selection toolbar; available actions remain in the context menu and keyboard shortcuts.
-
-### Focused
-
-Keyboard-focused cards that are not selected use a neutral focus border and a light focus shadow. This separates keyboard navigation from mouse or multi-selection state.
+Use the accent border, blue-tinted surface, and a soft `3px` accent halo. Selection is stronger than hover and should remain legible when the selected content is completed or important.
 
 ### Completed
 
-Completed cards are de-emphasized rather than hidden by default:
+De-emphasize without deleting:
 
-- Opacity reduces to approximately `0.72`.
-- Background changes to the done surface.
-- Text becomes faint.
-- Text receives a strikethrough.
-- The circular check fills blue.
-- The white checkmark draws into place.
+- Reduce opacity to roughly `0.72`.
+- Use the muted surface.
+- Use muted text.
+- Add a strikethrough if the content represents a finished item.
+- Fill the leading status control with blue.
 
-Completed selected cards retain slightly more opacity (`0.85`) so selection remains visible.
+The completed state should remain discoverable and reversible.
 
 ### Important
 
-Important cards use amber as a secondary semantic accent:
+Use amber as a narrow, secondary signal. A left edge stripe, small marker, or soft halo is preferable to coloring the entire card amber.
 
-- A `3px` amber stripe runs down the left edge with `9px` inset from the top and bottom.
-- A soft amber halo appears around the card unless it is selected or focused.
-- The unchecked completion border becomes amber.
-- A completed important card still uses blue for its filled completion state, keeping completion and importance semantically distinct.
+### Disabled
 
-### Expanded
+Use muted text, no pointer response, and no hover elevation. Do not make disabled content disappear entirely if the user needs to understand why an action is unavailable.
 
-Expanded cards remove the four-line clamp and show the complete note. Expansion does not create a separate detail view. It preserves the card's position and surrounding list context.
+### Loading
 
-### Dragging
+Keep the same surface and shape as the final content. Use a subtle opacity pulse instead of a generic spinner whenever the loading region has a predictable size.
 
-The dragged card reduces to `45%` opacity. The destination is made explicit with one of two treatments:
+### Error or destructive
 
-- A blue line and card border above or below the target card.
-- A dashed, accent-bordered placeholder occupying the destination position.
+Use the danger color for the action label and a restrained danger-tinted hover. Keep destructive choices separated from normal actions with a hairline divider or menu spacing.
 
-Dropping onto a section header highlights the header with an accent-soft background. This makes cross-section movement legible even when the target section has no cards.
+### Dragging and dropping
 
-### Editing
+Reduce the dragged object to roughly `45%` opacity. Show the destination with a dashed placeholder, an accent line above or below the target, or an accent-soft drop region. The user should always know where the object will land before release.
 
-Editing replaces the card text body with a transparent textarea using the same font and line height. The textarea receives focus automatically and selects the cursor at the end of the existing text. Ctrl+Enter or Cmd+Enter commits, Escape cancels, and blur commits.
+## 12. Motion Language
 
-## 9. Settings Screen
+Motion should feel quick, soft, and physical.
 
-Settings uses the same panel shell and top bar as the list view. The top bar contains a left-facing back glyph and a centered title. The title uses right padding to visually balance the back control.
+### Motion principles
 
-Settings are grouped into a long, scrollable vertical list. Each group has a small uppercase heading with dim text. Each setting is presented as a card-like row:
+- Respond immediately to input.
+- Use short durations for direct manipulation.
+- Use a gentle settle after a movement.
+- Animate opacity, color, shadow, and transform together when they describe one state change.
+- Preserve spatial identity when content reorders.
+- Avoid exaggerated overshoot.
+- Avoid continuous animation unless it communicates loading or recording.
 
-- Primary setting name on the left.
-- Optional supporting description below it.
-- Control on the right.
-- `10px 12px` internal padding.
-- `7px` spacing between rows.
-- Card shadow matching note cards.
+### Shared easing
 
-### General group
-
-The General group contains appearance selection, sounds, complete-on-copy, default section, and desktop-only window behavior. Supporting copy explains the consequence of each setting in plain language.
-
-### Global shortcuts group
-
-On desktop, shortcut configuration uses the same row structure as other settings. On browser mode, the group is replaced by a subdued explanatory note that shortcuts are desktop-only.
-
-Shortcut recording is a focused state: the field changes to `Press keys...`, receives an accent border and focused background, and pulses its border while recording. Escape restores the previous shortcut.
-
-### Archive and Trash groups
-
-Archive and Trash are list-like settings groups rather than separate screens. Their headings can show a count and a compact red clear action. Rows use ellipsized note text with Restore and Delete actions.
-
-The user is protected from accidental loss by the action model:
-
-- Clear archive moves archived notes to Trash.
-- Delete moves notes to Trash.
-- Delete forever removes them permanently.
-- Empty trash purges all trashed notes and unreferenced screenshots.
-
-### Storage card
-
-Storage is represented by a dedicated card with:
-
-- A `32px` accent-soft icon tile with `9px` radius.
-- A title row.
-- A `LOCAL ONLY` pill badge.
-- Supporting copy.
-- A monospace path.
-- An Open folder action on desktop.
-
-The card is one of the few places where the interface explicitly communicates product trust and data ownership.
-
-### About entry
-
-The About group is a normal settings row with a version subtitle and an Open button. It intentionally feels like another preference rather than a separate branded marketing surface.
-
-## 10. About Screen
-
-The About screen uses the settings layout and adds a centered hero.
-
-The hero includes:
-
-- A `56px` square theme-matched logo.
-- `14px` image radius.
-- A subtle drop shadow.
-- Lowercase `oxidized` wordmark at `21px`, weight `700`.
-- Version text at `11px` in faint text.
-- A centered description constrained to `300px` with `12px` type and `1.55` line height.
-
-The logo swaps between light and dark embedded PNG data URIs based on the resolved theme. The rest of the About screen is a settings-like list of link rows and credits, not a custom landing page.
-
-The current product naming is inconsistent: the package, window, and most UI use `Oxide`, while the About wordmark and pill label use `oxidized`. This should be treated as a brand decision to resolve, not silently normalized in future UI work.
-
-## 11. Context Menus and Overlays
-
-### Context menus
-
-Context menus are fixed-position floating surfaces:
-
-- Minimum width: `190px`.
-- Background: theme menu surface.
-- Radius: `11px`.
-- Border: one hairline.
-- Shadow: `0 8px 30px rgba(0, 0, 0, 0.18)`.
-- Outer padding: `4px`.
-- Item radius: `7px`.
-- Item padding: `6px 10px`.
-- Label-to-shortcut gap: `18px`.
-
-Menu items are compact, left-aligned, and use an accent-soft hover background. Keyboard hints are right-aligned in faint text. Disabled items use faint text and disable pointer events. Destructive items use the danger color and a danger-tinted hover background.
-
-Sections inside menus use an uppercase, letter-spaced subheading at `10px`. Separators are one-pixel hairlines with small horizontal margins.
-
-On desktop, the transparent native window can grow temporarily so a menu can extend beyond the panel without being clipped. The pre-menu native frame is restored after the menu closes. In browser mode, menus are clamped inside the viewport and may scroll vertically.
-
-### Toasts
-
-Toasts appear above the composer, centered horizontally:
-
-- Bottom offset: `74px`.
-- Dark translucent background: `rgba(29, 29, 31, 0.92)`.
-- White text at `12px`, weight `500`.
-- Pill radius: `100px`.
-- Padding: `7px 16px`.
-- Shadow: `0 4px 16px rgba(0, 0, 0, 0.25)`.
-
-They enter from `8px` below with reduced opacity and scale (`0.94`), then settle to full opacity and scale. They remain for approximately `1.6s` and are pointer transparent.
-
-### Screenshot previews
-
-The source-window screenshot is exposed as a small pill button inside the note body. The button uses a camera SVG, `10px` text, a full pill radius, and field background. It is semi-transparent until the card is hovered or the preview is open.
-
-The opened image has:
-
-- Maximum width of the card body.
-- Maximum height of `220px`.
-- `8px` radius.
-- A hairline border.
-- A card shadow.
-
-While the image is being written or loaded, the preview region uses a `48px` minimum height and a pulsing field background. If the image never becomes available, the reference is removed and a toast explains the failure.
-
-## 12. Minimized Pill
-
-The minimized pill is a second physical state of the same panel rather than a new window concept.
-
-### Dimensions
-
-- Panel face: `160px` by `44px`.
-- Native window includes approximately `16px` extra space so the shadow is not clipped.
-- Radius: `22px`.
-- Shadow: `0 1px 5px rgba(0, 0, 0, 0.2)`.
-
-### Content
-
-The pill hides the top bar, list, composer, settings, and resize grip. It shows:
-
-- An `8px` grip dot.
-- A lowercase label such as `oxidized - 4 tasks`.
-- A label area that acts as the click-to-expand surface and drag handle.
-
-The label reports the number of incomplete notes in visible, non-system sections. It is a compact status summary, not a navigation breadcrumb.
-
-### Capture feedback
-
-When a capture arrives while minimized, the pill can either expand automatically or flash depending on the setting. The flash repeats three times over approximately `1.6s`, adding an accent border, accent halo, and blue glow. This preserves awareness without forcing the user out of the minimized state.
-
-## 13. Motion System
-
-Motion uses short durations and a Mac-style settling curve:
+Use this as the default settling curve:
 
 ```css
 --ease: cubic-bezier(0.32, 0.72, 0, 1);
 ```
 
-The general motion principle is quick response followed by a small, soft settle. Motion should communicate state change and spatial continuity, not provide decoration.
+For more complex list movement, the reference uses a related curve:
 
-### Timing reference
+```css
+cubic-bezier(0.3, 0.75, 0.35, 1)
+```
 
-| Motion | Duration | Behavior |
-| --- | --- | --- |
-| Card hover and state transition | `120ms` to `240ms` | Shadow, border, fill, opacity, and transform |
-| Completion control | `150ms` to `250ms` | Fill, border, scale, and check drawing |
-| Section collapse | `320ms` | Grid row collapses from `1fr` to `0fr` |
-| Section caret | `280ms` | Rotates between expanded and collapsed |
-| Card entrance | `300ms` | Fades in, moves up `7px`, scales from `0.965` |
-| Card removal | `160ms` | Fades, moves right `10px`, scales to `0.94` |
-| Completion pop | `320ms` | Scales to `1.35` at 45%, then settles |
-| Card settle | `300ms` | Briefly scales to `0.982` and returns |
-| Context menu entrance | `150ms` | Fades and scales from `0.95`, moves up `4px` |
-| Context menu exit | `130ms` | Fades and scales down to `0.94`, moves up |
-| Toast entrance/exit | `180ms` | Fades and translates vertically |
-| Pill morph | `300ms` to `340ms` | Width, height, radius, transform, and shadow |
-| Pill capture flash | `500ms`, repeated 3 times | Accent glow and border pulse |
-| Screenshot loading | `1.1s` loop | Opacity pulse |
-| Shortcut recording pulse | `1.1s` loop | Border-color pulse |
-| Card FLIP movement | `400ms` | Old position to new position with slight overshoot |
+### Timing scale
 
-### Card entrance and removal
-
-New notes animate from below with a small scale reduction and opacity fade. Removed cards move slightly right while fading and shrinking. These are intentionally short so rapid capture remains responsive.
-
-### Completion animation
-
-The done class is applied one animation frame after the card initially renders in its previous state. This allows the border, fill, checkmark stroke, opacity, text color, and strikethrough transitions to actually run instead of appearing instantaneously.
-
-The checkmark uses SVG stroke-dashoffset. The stroke starts hidden and draws into view when the card becomes done. A separate scale pop on the check control provides tactile emphasis.
-
-### Section collapse
-
-The card stack is wrapped in a CSS grid whose row transitions from `1fr` to `0fr`. The cards also fade to zero opacity. This avoids an abrupt disappearance while keeping the layout height animation smooth.
-
-### Reordering and drag movement
-
-After a reorder, move, deletion, or other list rebuild, visible card rectangles are captured before rendering. Cards animate from their previous positions to their new positions using the Web Animations API. The animation briefly overshoots by approximately 6% of the travel distance before settling.
-
-This is a FLIP-style continuity pattern and is important because the application frequently rebuilds the DOM after selection and state changes.
-
-### Press feedback
-
-Controls use subtle compression:
-
-- Icon buttons scale to `0.9`.
-- Completion circles scale to `0.86`.
-- Pill labels scale to `0.97`.
-- Compact settings buttons scale to `0.94`.
-- Switch knobs stretch horizontally while pressed.
-
-The feedback is deliberately small and fast. It should feel like a physical click, not a button animation.
-
-### Sound as motion companion
-
-There are no audio files. `src/mainview/sounds.ts` synthesizes short Web Audio oscillator tones with fast attack and smooth decay. The sound palette mirrors the visual language:
-
-- Completion: bright two-note rising pop.
-- Uncompletion: soft downward blip.
-- Capture: triangle-wave rising tone followed by a higher note.
-- Copy: short high tone.
-- Delete: lower triangle-wave falling tone.
-- Add note and pill toggle: neutral short pop.
-
-Sounds are controlled by the Settings switch and are intentionally quiet. They reinforce actions without becoming a persistent notification channel.
-
-## 14. Interaction Model
-
-### Selection
-
-- Click selects one card.
-- Clicking the only selected card again clears selection.
-- Ctrl-click or Cmd-click toggles individual selection.
-- Shift-click selects a visible range.
-- Ctrl+A or Cmd+A selects all visible notes.
-- Escape clears selection.
-- Clicking list background clears selection when the pointer did not move.
-
-The selected card style is both a state indicator and an action target. There is no persistent toolbar, which keeps the panel compact.
-
-### Keyboard navigation
-
-The keyboard model is central to the product:
-
-| Shortcut | Action |
+| Motion | Duration |
 | --- | --- |
-| Up / Down | Move focus through visible notes |
-| Shift + Up / Down | Extend selection while moving |
-| Alt + Up / Down | Move selected notes |
-| Space | Toggle completion |
-| Enter | Edit the focused note |
-| Delete / Backspace | Move selected notes to Trash |
-| Ctrl+C / Cmd+C | Copy plain text |
-| Ctrl+Alt+C / Cmd+Option+C | Copy as numbered list |
-| Ctrl+D / Cmd+D | Duplicate |
-| Ctrl+I / Cmd+I | Toggle important |
-| Ctrl+M / Cmd+M | Merge |
-| Ctrl+E / Cmd+E | Archive |
-| `/` or Ctrl+F / Cmd+F | Focus search |
-| Typing with no selection | Focus composer |
+| Hover and border transition | `120ms` to `160ms` |
+| Field or switch state | `150ms` to `200ms` |
+| Checkmark draw | `250ms` |
+| Press feedback | `140ms` to `150ms` |
+| Menu entrance | `150ms` |
+| Menu exit | `130ms` |
+| Toast entrance | `180ms` |
+| Card entrance | `300ms` |
+| Card removal | `160ms` |
+| Completion pop | `320ms` |
+| Section collapse | `320ms` |
+| Shell morph | `300ms` to `340ms` |
+| List repositioning | `400ms` |
+| Capture flash | `500ms` per pulse |
 
-When a note is focused, the list scrolls it into view using nearest-edge scrolling. Inputs and textareas stop the global key handler from interpreting text entry as note actions.
+### Recommended animation recipes
 
-### Search and filtering
+#### Card entrance
 
-Search filters note text case-insensitively. The search field is continuously visible in the top bar. Escape clears the query and blurs the field. Arrow Down leaves the search field and focuses the first visible note.
+Start at:
 
-The application menu also provides Hide completed. Search and completion filtering are applied before keyboard navigation and selection range calculations.
+- Opacity `0`.
+- Translate Y `7px`.
+- Scale `0.965`.
 
-### Note actions
+Settle to normal opacity and transform over `300ms` using the shared curve.
 
-Right-clicking a note opens actions for:
+#### Card removal
 
-- Copy.
-- Copy as List.
-- Copy as Markdown.
-- Mark done or not done.
-- Mark important or remove important.
-- Expand or collapse.
-- Edit.
-- Duplicate.
-- Merge Notes.
-- Archive.
-- Move to another section.
-- Delete.
+Animate toward:
 
-Multi-selection changes labels to include the note count and disables actions that only make sense for one note, such as Edit.
+- Opacity `0`.
+- Translate X `10px`.
+- Scale `0.94`.
 
-### Section actions
+Use approximately `160ms` and an ease-in curve so removal feels decisive.
 
-Right-clicking a section opens actions for:
+#### Completion
 
-- Setting it as the capture target.
-- Renaming.
-- Collapsing or expanding.
-- Choosing a pastel color.
-- Deleting the section while keeping its notes.
-- Deleting the section and its notes.
+Render the old state for one frame, then toggle the completed state so the browser can animate the transition. Draw the checkmark through SVG stroke-dashoffset. Add a small control pop to `1.35` scale at around 45% of the animation.
 
-### Application menu
+#### Collapse
 
-The top-right application menu contains:
+Use a grid row transition from `1fr` to `0fr`, with the content opacity fading toward zero. Keep the group header in place.
 
-- New section.
-- Collapse all.
-- Hide completed.
-- Clear completed.
-- Settings.
-- Desktop-only always-on-top behavior.
-- Desktop-only hide panel.
-- Desktop-only quit.
+#### Reordering
 
-The menu stays small and action-oriented. Settings and application-level operations are intentionally hidden behind the menu so the main list remains uncluttered.
+Capture old element rectangles, render the new order, calculate the positional delta, and animate each existing element from the old position to the new one. A small settle or approximately 6% overshoot is acceptable.
 
+#### Menu
 
-## 15. Responsive and Platform Behavior
+Enter from `scale(0.95) translateY(-4px)` to normal. Exit toward `scale(0.94) translateY(-5px)`. Keep the origin at the top-left where the menu appears.
 
-Oxide has two related execution environments.
+#### Shell morph
 
-### Desktop-only behavior
+When switching between full and compact states, animate width, height, radius, transform, and shadow together. Fade the full content out while revealing the compact face. The result should read as one object changing mode.
 
-The Electrobun desktop shell provides:
+### Repeating animation
 
-- Frameless transparent window behavior.
-- Always-on-top support.
-- Global shortcuts.
-- Clipboard capture from other applications.
-- Double-tap capture.
-- Source-window screenshots.
-- Native window movement and snap positions.
-- Native data-folder access.
-- Hide, show, and quit actions.
-- Window resize and minimized pill resizing.
+Use repeating pulses only for:
 
-The desktop panel is intended to remain above active work and can be positioned at a screen edge or corner.
+- Screenshot or media loading.
+- Shortcut recording.
+- Capture arrival while the shell is minimized.
 
-### Browser behavior
-
-Browser mode provides the core local scratchpad experience:
-
-- Notes and settings persist in `localStorage`.
-- External links open in a new browser tab.
-- The panel is centered on a blue-gray gradient.
-- Global shortcuts and native capture are unavailable.
-- Screenshot loading is disabled.
-- Menus are clamped to the viewport.
-- The panel cannot grow its browser window and uses internal scrolling.
-
-The browser version should preserve the same visual semantics even when a native capability is unavailable. For example, it explains that global shortcuts are desktop-only rather than rendering broken controls.
-
-
-## 16. Assets and Iconography
-
-Iconography is deliberately minimal:
-
-- Search uses an inline SVG magnifier.
-- Source screenshots use an inline SVG camera.
-- Storage uses an inline SVG folder.
-- Completion uses an inline SVG checkmark.
-- Back, menu, and minimize use text glyphs: `<`, `...`, and `-` equivalents in the current implementation.
-
-There is no icon library. This keeps the binary and dependency footprint small and gives the controls a simple utility character. If new icons are added, they should use the existing inline SVG approach, inherit `currentColor`, and use the same small stroke-based visual weight.
-
-The About logos are embedded as base64 PNG data URIs in `src/mainview/logo.ts`. The source assets are `logo-1024-1024-white.png` and the corresponding dark logo asset. The logo is theme-switched rather than recolored through CSS.
-
-## 17. Accessibility and Quality Notes
-
-The current visual system is strong, but several implementation details should be considered when extending it.
-
-### Focus visibility
-
-Some native inputs and settings controls have focus styling, but cards and completion controls are `div` elements with click handlers, and many buttons do not have explicit `:focus-visible` styling. Future work should preserve the visual language while adding clear keyboard focus rings to every interactive element.
+The pulse should change opacity, border, or glow softly. Never make the whole panel continuously bounce.
 
 ### Reduced motion
 
-The interface currently uses many transitions and animations but does not implement `prefers-reduced-motion`. A reduced-motion mode should disable or shorten:
+Every animated component must have a reduced-motion behavior:
 
-- Card entrance and exit transforms.
-- FLIP movement.
-- Pill morphing.
-- Completion pop.
-- Menu scaling.
-- Screenshot and shortcut pulses.
+```css
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+}
+```
 
-Opacity and color changes can remain if they do not cause discomfort.
+Where possible, retain useful color and opacity changes while removing translation, scale, morphing, and looping effects.
+
+## 13. Interaction and Feedback
+
+### Keyboard-first behavior
+
+The UI should support a complete keyboard path for the main workflow:
+
+- Search or filter focus.
+- First-item focus.
+- Up and down navigation.
+- Range or multi-selection.
+- Primary state toggle.
+- Edit.
+- Delete or archive.
+- Copy or export.
+- Escape to cancel, close, or clear.
+
+Keyboard behavior should not require a visually dense shortcut toolbar. Keep shortcuts discoverable through menu hints, settings, help text, or tooltips.
+
+### Direct manipulation
+
+Mouse or pointer interactions should remain discoverable:
+
+- Click selects or activates.
+- Double-click edits or renames when appropriate.
+- Right-click reveals secondary actions.
+- Dragging reorders or moves content.
+- Empty background clears selection.
+
+Do not overload a single gesture with unrelated outcomes. If a card is draggable, make the drop position explicit.
+
+### Selection model
+
+The reference style avoids a persistent bulk-action toolbar. For other apps, use the same strategy when the panel must remain compact:
+
+- Show selection directly on items.
+- Keep bulk actions in a context menu or command layer.
+- Add count-aware labels for multi-selection.
+- Disable actions that cannot operate on the current selection.
+
+### Feedback priority
+
+Use this order when deciding how to communicate a result:
+
+1. Change the affected element.
+2. Animate the affected element if the transition benefits from explanation.
+3. Use a local inline message if the element cannot show the result.
+4. Use a toast for brief confirmation or asynchronous failure.
+5. Use a modal only for high-risk confirmation or a blocking decision.
+
+## 14. Iconography and Assets
+
+### Icon style
+
+Use a small, stroke-based icon language:
+
+- Inline SVG is preferred for a small dependency footprint.
+- Icons should inherit `currentColor`.
+- Use rounded caps and joins where appropriate.
+- Keep stroke weights around `1.8` to `2.4` for small icons.
+- Keep common icons between `11px` and `17px`.
+- Do not mix heavy filled icons with thin utility glyphs.
+
+The reference uses inline icons for search, camera, storage, and completion. Very simple navigation or window controls can use text glyphs when their meaning is obvious.
+
+### Icon placement
+
+- Give icons a stable box so text does not shift when state changes.
+- Use `6px` to `8px` gaps between an icon and its label.
+- Use muted icon color by default.
+- Let active icons inherit the semantic accent.
+- Add accessible labels or titles to icon-only controls.
+
+### Brand assets
+
+Brand marks should be small and theme-aware. A `56px` square mark with a `14px` radius is sufficient for an About or identity surface in this style. Do not make branding larger than the utility's primary content hierarchy.
+
+## 15. Responsive Adaptation
+
+The visual language is optimized for a narrow utility, but it can be adapted to other contexts.
+
+### Narrow desktop
+
+- Keep the panel around `280px` to `380px` wide.
+- Preserve `12px` side insets.
+- Clamp content to four lines where scanning is more important than reading.
+- Keep the composer or primary action fixed.
+- Use internal scrolling.
+
+### Wide desktop
+
+- Increase panel width only when content genuinely benefits.
+- Keep card padding and type scale stable rather than stretching all spacing.
+- Use the extra width for content body or preview media, not oversized controls.
+- Consider a secondary column only if the product requires persistent comparison.
+
+### Mobile
+
+- Let the panel become a full-width or near-full-width surface.
+- Reduce outer radius only when the panel touches the viewport edge.
+- Preserve the same cards, fields, color roles, and state language.
+- Replace hover-only affordances with always-available labels or touch actions.
+- Increase hit areas without making the visual containers feel oversized.
+- Replace drag-only operations with explicit move controls where necessary.
+
+### Embedded or browser contexts
+
+- Keep the panel visually opaque.
+- Use a restrained backdrop outside it.
+- Clamp menus inside the available viewport.
+- Explain unavailable native features inline.
+- Do not expose controls that cannot work in the current environment.
+
+## 16. Accessibility Rules
+
+The quiet visual language must not become an inaccessible low-contrast language.
+
+### Focus
+
+Every interactive element needs a visible focus state. Use the blue focus ring or an equivalent high-contrast theme-aware border. Do not rely on hover styling for keyboard users.
 
 ### Contrast
 
-The design intentionally uses faint metadata and muted completed states. Contrast should be checked whenever new muted text or tinted sections are introduced, especially in dark mode and on pastel backgrounds.
+Check all combinations of:
 
-### Interaction semantics
+- Primary text on raised surfaces.
+- Secondary text on the panel.
+- Muted text on completed surfaces.
+- Dark text on pastel group pills.
+- Danger text on menu surfaces.
+- Accent text on accent-soft backgrounds.
 
-The card interaction model is powerful but implemented with non-semantic `div` elements. If the UI is made more accessible, preserve the existing visual states while adding appropriate roles, keyboard activation, focus management, and announcements for bulk actions.
+Muted does not mean unreadable. If metadata is important to completing a task, it should not use the faintest token.
 
-### Theme consistency
+### Semantics
 
-Some values bypass semantic tokens:
+Use semantic buttons, inputs, headings, lists, and dialogs where possible. If a visual card acts as a selectable or draggable item, expose that behavior through keyboard interaction and appropriate accessibility attributes.
 
-- The focused card halo uses a hardcoded light black shadow.
-- Danger-menu hover uses a hardcoded light-theme red alpha.
-- Shortcut recorder pulse uses a hardcoded light-theme blue alpha.
+### Motion
 
-These should be tokenized if the dark theme is refined.
+Support `prefers-reduced-motion`. Avoid using animation as the only signal of a state change. A completed, selected, or error state must remain understandable when all transforms are removed.
 
+### Touch
 
-The UI deliberately delays some DOM changes by one or two frames to expose transitions. New interactions should avoid rebuilding the entire panel when a local class toggle can preserve focus, scroll position, and motion continuity.
+When adapting to touch, preserve the visual density but increase the actual hit area through padding or invisible hit targets. Do not rely on hover to reveal critical actions.
 
+## 17. Do and Do Not
 
-These are observations from the current implementation, not arbitrary style preferences:
+### Do
 
-- Product naming alternates between `Oxide` and `oxidized`.
-- Archive and Trash are identified by section title, so renaming a normal section to one of those names changes its system behavior.
-- The stylesheet's opening comment calls the panel translucent even though the panel background is opaque.
-- No reduced-motion mode exists.
-- Focus treatment is not uniformly visible across all interactive elements.
-- Several dark-theme-sensitive colors are hardcoded outside the token layer.
-- The context-menu Expand/Collapse label is based on the first selected note while the action toggles every selected note, which can produce a misleading label for mixed selections.
-- Embedded logo data must be regenerated when source logo assets change.
-- There are no media queries, so the design is optimized for a narrow desktop utility rather than a general mobile experience.
+- Use neutral surfaces as the majority of the interface.
+- Use one primary blue accent consistently.
+- Keep cards soft, compact, and lightly elevated.
+- Use a clear radius hierarchy.
+- Keep labels short and supporting copy quiet.
+- Use uppercase labels for structural grouping.
+- Make selected state stronger than hover state.
+- Keep important state amber and destructive state red.
+- Animate changes locally and briefly.
+- Preserve spatial continuity when content moves.
+- Keep a persistent primary input visually similar to a card.
+- Make compact states morph from the full shell.
+- Provide a dark-theme counterpart for every semantic token.
+- Provide reduced-motion behavior for every animation.
 
+### Do not
 
-When adding a new component or state, follow these rules:
+- Use accent blue for decorative backgrounds everywhere.
+- Use amber or red as general branding colors.
+- Put thick outlines around every resting component.
+- Make every card equally prominent.
+- Turn the settings screen into a separate visual product.
+- Use large empty hero areas inside a focused utility.
+- Hide critical state only behind hover.
+- Use a toast as the only confirmation for a persistent change.
+- Use large spring overshoots or playful bouncing.
+- Add a new shadow level for every component.
+- Mix unrelated icon families.
+- Let desktop-only controls appear as broken browser controls.
+- Treat dark mode as an inversion of light mode without adjusting semantic contrast.
 
-- Start with an existing surface: panel, card, field, or menu. Do not introduce a new visual material without a clear hierarchy reason.
-- Use the semantic theme tokens for color. Add a token when a color has a reusable meaning.
-- Keep primary text near `13px` and supporting text between `10px` and `12px` unless the content hierarchy clearly needs another scale.
-- Use `12px` card radius for content surfaces and `8px` to `10px` for compact controls.
-- Keep gaps in the existing small rhythm, generally between `4px` and `12px`.
-- Use blue for active and completed states, amber for importance, and red only for destructive actions.
-- Prefer local state feedback over global overlays.
-- Use short transitions with the shared `--ease` curve and avoid elastic or decorative motion.
-- Preserve list continuity with FLIP-style movement when an action reorders or removes cards.
-- Keep content dense but allow text to breathe inside cards through `10px 12px` padding and `1.45` line height.
-- Add a dark-theme value for every light-theme token.
-- Add a reduced-motion fallback for every new transform or repeating animation.
-- Preserve browser mode as a graceful core experience when a native desktop capability is unavailable.
-- Keep destructive actions separated from routine actions and use the danger color consistently.
+## 18. Portable Implementation Tokens
 
+The following starter token block can be used in another app as a direct translation of the display language:
 
-| Area | Primary source |
+```css
+:root {
+  --canvas: #ececee;
+  --surface: #ffffff;
+  --surface-hover: #fdfdfd;
+  --surface-muted: #f6f6f7;
+  --surface-selected: #f3f8ff;
+  --surface-field: #f1f1f3;
+  --surface-field-hover: #e8e8ec;
+  --surface-field-focus: #f3f8ff;
+  --surface-menu: #fafafa;
+
+  --text: #1d1d1f;
+  --text-secondary: #86868b;
+  --text-muted: #aeaeb2;
+
+  --accent: #007aff;
+  --accent-soft: rgba(0, 122, 255, 0.12);
+  --focus-ring: rgba(0, 122, 255, 0.5);
+  --danger: #d64541;
+  --warning: #ff9f0a;
+  --hairline: rgba(0, 0, 0, 0.09);
+
+  --radius-shell: 18px;
+  --radius-card: 12px;
+  --radius-field: 8px;
+  --radius-menu: 11px;
+  --radius-pill: 999px;
+
+  --shadow-card:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 1px 1px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-shell:
+    0 12px 40px rgba(0, 0, 0, 0.22),
+    0 2px 8px rgba(0, 0, 0, 0.1);
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, sans-serif;
+  --ease-settle: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root[data-theme="dark"] {
+  --canvas: #1f1f21;
+  --surface: #2b2b2e;
+  --surface-hover: #313134;
+  --surface-muted: #26262a;
+  --surface-selected: #263140;
+  --surface-field: #3a3a3e;
+  --surface-field-hover: #454549;
+  --surface-field-focus: #2b3a4d;
+  --surface-menu: #2c2c2f;
+
+  --text: #f2f2f4;
+  --text-secondary: #9a9aa0;
+  --text-muted: #6f6f76;
+
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.2);
+  --focus-ring: rgba(10, 132, 255, 0.55);
+  --danger: #ff5f57;
+  --warning: #ffb340;
+  --hairline: rgba(255, 255, 255, 0.1);
+}
+```
+
+## 19. Fast Recipe for Mirroring the Style
+
+When creating a new app that should look like this interface, use this sequence:
+
+1. Start with a narrow vertical panel around `380px` by `680px`.
+2. Give it an opaque neutral canvas, an `18px` radius, and a broad soft shadow.
+3. Add a compact top bar with `12px` horizontal padding and `8px` gaps.
+4. Build the main content from raised `12px` cards with `10px 12px` padding and `7px` gaps.
+5. Use the system sans-serif stack at a `13px` base size.
+6. Reserve blue for active, selected, focused, and completed states.
+7. Keep default content neutral and visually quiet.
+8. Use amber as a narrow attention signal and red only for destructive actions.
+9. Use a fixed bottom input or primary action when the workflow is continuous.
+10. Keep menus compact, floating, rounded, and lightly shadowed.
+11. Define hover, focus, selected, completed, disabled, loading, and destructive states before implementation.
+12. Animate state changes with short durations and the shared settling curve.
+13. Use local feedback first and toasts second.
+14. Add a compact pill or collapsed mode only if the product benefits from staying present but out of the way.
+15. Test the entire system in both light and dark themes.
+16. Add reduced-motion behavior before shipping.
+
+If the result feels too much like a generic dashboard, reduce color, reduce border weight, reduce the number of persistent controls, and return emphasis to surface hierarchy and spacing.
+
+## 20. Current UI Translation Appendix
+
+This appendix maps the portable language back to the reference implementation. It is intentionally separate from the main rules so the system can be reused without adopting the original product's domain.
+
+### Reference shell
+
+- Main panel: `.panel` in `src/mainview/style.css`.
+- Top bar: `.topbar`.
+- Scrollable workspace: `.list` and `.settings`.
+- Persistent entry area: `.composer` and `.composer-inner`.
+- Compact shell: `.panel.pill` and `.pill-face`.
+- Resize affordance: `.resize-grip`.
+
+### Reference content mapping
+
+- Generic content item: `.card`.
+- Generic group: `.section` and `.section-header`.
+- Generic leading state control: `.check`.
+- Generic inline media: `.card-shot`.
+- Generic settings row: `.set-row`.
+- Generic floating menu: `.ctxmenu`.
+- Generic temporary confirmation: `.toast`.
+
+### Reference state mapping
+
+- Selected item: `.card.selected`.
+- Keyboard-focused item: `.card.focused`.
+- Completed item: `.card.done`.
+- Important item: `.card.important`.
+- Dragged item: `.card.dragging`.
+- Drop position: `.drop-preview`, `.card.drag-over-top`, and `.card.drag-over-bottom`.
+- Group collapsed state: `.section.collapsed`.
+- Loading media: `.card-shot.loading`.
+- Shortcut recording: `.shortcut-field.recording`.
+
+### Reference motion mapping
+
+- Card entrance: `card-in`.
+- Card removal: `card-out`.
+- Completion emphasis: `check-pop` and `card-settle`.
+- Group collapse: `grid-template-rows` transition on `.cards-wrap`.
+- Menu entrance and exit: `menu-in` and `menu-out`.
+- Compact-shell transition: `.panel.morphing` and `.panel.pill`.
+- Capture feedback: `pill-flash`.
+
+### Reference source files
+
+| Concern | Source |
 | --- | --- |
-| Global tokens and all component styles | `src/mainview/style.css` |
-| Application state and screen rendering | `src/mainview/index.ts` |
-| Main list, composer, card rendering | `src/mainview/index.ts:775-1346` |
-| Minimized pill and resize behavior | `src/mainview/index.ts:1348-1484` |
-| Settings screen | `src/mainview/index.ts:1487-1880` |
-| About screen | `src/mainview/index.ts:1882-1965` |
-| Settings control patterns | `src/mainview/index.ts:1967-2133` |
-| Context menus and section palette | `src/mainview/index.ts:2149-2503` |
-| Toasts and keyboard navigation | `src/mainview/index.ts:2505-2662` |
-| Theme resolution and desktop dragging | `src/mainview/index.ts:2664-2738` |
-| Browser/desktop boot behavior | `src/mainview/index.ts:2740-2803` |
-| Synthesized UI sounds | `src/mainview/sounds.ts` |
-| Theme-specific About logos | `src/mainview/logo.ts` |
-| Shared note, section, and settings shape | `src/shared/types.ts` |
-| Native window, capture, screenshots, and shortcuts | `src/bun/index.ts` |
-| Product positioning and feature inventory | `README.md` |
+| Global visual tokens and component styles | `src/mainview/style.css` |
+| Screen and interaction rendering | `src/mainview/index.ts` |
+| Synthesized feedback sounds | `src/mainview/sounds.ts` |
+| Theme-specific identity assets | `src/mainview/logo.ts` |
+| Shared state and settings shape | `src/shared/types.ts` |
+| Native window and platform behavior | `src/bun/index.ts` |
+
+The appendix is descriptive, not prescriptive. A new application should use the generic names and semantic rules in the main document, then adapt the components to its own content model.
