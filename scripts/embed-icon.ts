@@ -10,7 +10,10 @@ import { execFileSync } from "node:child_process";
 
 const root = dirname(import.meta.dir);
 const ico = join(root, "assets", "icon.ico");
-const buildDir = join(root, "build");
+// Electrobun runs this as postBuild before packaging. Its environment points
+// at the exact platform/environment build folder; keep the root fallback for
+// manual runs such as `bun run embed-icon`.
+const buildDir = process.env.ELECTROBUN_BUILD_DIR || join(root, "build");
 
 if (process.platform !== "win32") {
   console.log("[embed-icon] Windows only, skipping");

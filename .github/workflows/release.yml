@@ -178,9 +178,6 @@ jobs:
       - name: Build stable Electrobun release
         run: bunx electrobun build --env=stable
 
-      - name: Embed application icon when supported
-        run: bun run embed-icon
-
       - name: Validate release artifacts
         shell: bash
         run: |

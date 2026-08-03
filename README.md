@@ -120,7 +120,7 @@ oxidized/
 |-- assets/
 |   `-- icon.ico               Application icon
 |-- scripts/
-|   `-- embed-icon.ts          Embeds the Windows icon after building
+|   `-- embed-icon.ts          Embeds the Windows icon during packaging
 |-- electrobun.config.ts       Desktop and packaging configuration
 |-- package.json               Scripts and dependencies
 |-- serve.ts                   Browser-mode development server

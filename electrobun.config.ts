@@ -2,7 +2,7 @@ export default {
   app: {
     name: "Oxide",
     identifier: "nl.stevenrs.oxide",
-    version: "0.1.0",
+    version: "1.0.1",
   },
   build: {
     bun: {
@@ -22,5 +22,9 @@ export default {
       // installer, shortcuts and taskbar icon for packaged builds
       icon: "assets/icon.ico",
     },
+  },
+  scripts: {
+    // Embed the icon before Electrobun archives the Windows app bundle.
+    postBuild: "./scripts/embed-icon.ts",
   },
 };
