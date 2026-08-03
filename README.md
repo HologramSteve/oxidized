@@ -159,6 +159,10 @@ Oxide does not upload or synchronize this data.
 - Windows 10 has been tested and works, but it is outside the official support policy.
 - Official desktop support covers macOS 14+, Windows 11+, and Ubuntu 22.04+.
 
+## License
+
+Public domain under the [Unlicense](LICENSE). Do whatever you want with it — no attribution required.
+
 ## A note from the maker
 A few notes about this project:
 - **Code quality**: this project is partly vibe-coded, I know the code quality sucks. If you don't like it, buy shadcn's version or actually fix it.
