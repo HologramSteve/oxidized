@@ -160,11 +160,7 @@ Oxide does not upload or synchronize this data.
 - Official desktop support covers macOS 14+, Windows 11+, and Ubuntu 22.04+.
 
 ## A note from the maker
-
-_This space is reserved for a short handwritten message._
-
-____________________________________________________________
-
-____________________________________________________________
-
-____________________________________________________________
+A few notes about this project:
+- **Code quality**: this project is partly vibe-coded, I know the code quality sucks. If you don't like it, buy shadcn's version or actually fix it.
+- **This shit is copied from copper**: yeah that's the whole idea. see [this link](https://shadcn.com/copper) and [this link](https://x.com/deepseekailover/status/2083541502160945584)
+- **I love you**: thanks, you're not alone
