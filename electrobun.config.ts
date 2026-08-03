@@ -2,7 +2,7 @@ export default {
   app: {
     name: "Oxide",
     identifier: "nl.stevenrs.oxide",
-    version: "1.0.1",
+    version: "1.0.2",
   },
   build: {
     bun: {
