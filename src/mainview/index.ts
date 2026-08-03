@@ -248,8 +248,22 @@ function normalizeState(raw: unknown): AppState | null {
     if (typeof sec.id !== "string" || !Array.isArray(sec.notes)) return null;
     sec.collapsed = !!sec.collapsed;
   }
-  if (!s.sections.find((sec) => sec.id === s.activeSectionId)) {
-    s.activeSectionId = s.sections[0]?.id ?? "";
+  // an old bug could land new notes in the hidden Trash section — anything
+  // there without a deletedAt was never deleted, so pull it back out
+  const rescueTarget = s.sections.find((sec) => !isHidden(sec));
+  if (rescueTarget) {
+    for (const sec of s.sections) {
+      if (!isTrash(sec)) continue;
+      const stranded = sec.notes.filter((n) => !n.deletedAt);
+      if (stranded.length > 0) {
+        sec.notes = sec.notes.filter((n) => n.deletedAt);
+        rescueTarget.notes.push(...stranded);
+      }
+    }
+  }
+  const active = s.sections.find((sec) => sec.id === s.activeSectionId);
+  if (!active || isHidden(active)) {
+    s.activeSectionId = s.sections.find((sec) => !isHidden(sec))?.id ?? "";
   }
   return s;
 }
@@ -299,8 +313,11 @@ function visibleNotes(): Note[] {
 
 function addNote(text: string, sectionId?: string): Note {
   const trimmed = text.trim();
+  // never capture into Trash/Archive — if the target is hidden or gone,
+  // fall back to the first visible section
+  const target = state.sections.find((s) => s.id === sectionId);
   const section =
-    state.sections.find((s) => s.id === sectionId) ?? state.sections[0];
+    target && !isHidden(target) ? target : state.sections.find((s) => !isHidden(s));
   if (!section) {
     const created: Section = { id: uid(), title: "Notes", collapsed: false, notes: [] };
     state.sections.push(created);
@@ -629,7 +646,7 @@ function deleteSection(sectionId: string, withNotes: boolean) {
     }
   }
   if (state.activeSectionId === sectionId) {
-    state.activeSectionId = state.sections[0]?.id ?? "";
+    state.activeSectionId = state.sections.find((s) => !isHidden(s))?.id ?? "";
   }
   persist();
   render();
@@ -2024,18 +2041,37 @@ function selectRow(
   label.appendChild(h("small", undefined, sub));
   row.appendChild(label);
 
-  const sel = h("select", "select-field");
-  for (const opt of options) {
-    const o = h("option", undefined, opt.label);
-    o.value = opt.value;
-    if (opt.value === current) o.selected = true;
-    sel.appendChild(o);
-  }
-  sel.addEventListener("change", () => {
-    onChange(sel.value);
-    sounds.pop();
+  // not a native <select>: its popup is clipped at the frameless window edge
+  // and the overflowing part can't be clicked. The custom menu grows the
+  // window (menuGrow) so every option stays hittable.
+  let cur = current;
+  const field = h("button", "select-field");
+  const setLabel = () => {
+    field.textContent = options.find((o) => o.value === cur)?.label ?? cur;
+    field.appendChild(h("span", "select-caret", "▾"));
+  };
+  setLabel();
+  field.addEventListener("click", (e) => {
+    // the document-level click handler closes menus — don't kill this one
+    e.stopPropagation();
+    const r = field.getBoundingClientRect();
+    showMenu(
+      r.left,
+      r.bottom + 4,
+      options.map((o) => ({
+        label: o.label,
+        checked: o.value === cur,
+        action: () => {
+          if (o.value === cur) return;
+          cur = o.value;
+          setLabel();
+          onChange(o.value);
+          sounds.pop();
+        },
+      }))
+    );
   });
-  row.appendChild(sel);
+  row.appendChild(field);
   return row;
 }
 

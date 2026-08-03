@@ -594,13 +594,16 @@ body.web-mode #app {
   border-radius: 100px;
   padding: 2px 8px;
   cursor: pointer;
-  opacity: 0.75;
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .card:hover .shot-btn,
+.shot-btn:focus-visible,
 .shot-btn.open {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .shot-btn:hover {
@@ -1333,6 +1336,12 @@ body.web-mode .ctxmenu {
   outline: none;
   border-color: var(--ring);
   background: var(--field-bg-focus);
+}
+
+.select-field .select-caret {
+  margin-left: 6px;
+  font-size: 9px;
+  opacity: 0.55;
 }
 
 /* number field (e.g. double-press window) */
