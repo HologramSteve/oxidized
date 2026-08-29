@@ -4,11 +4,28 @@ Oxide is a small, floating scratchpad for the ideas, snippets, and prompts you p
 
 Everything stays local. There are no accounts, sync services, or telemetry.
 
+## Changelog
+
+### 1.1.0
+
+- **Electron desktop app** — Oxide now runs on Electron instead of Electrobun, with installers from electron-builder (Windows NSIS/zip, macOS dmg/zip, Linux AppImage/deb). Notes and settings files stay compatible.
+- **Manual resize only** — Drag the bottom-right corner grip to resize. Opening or closing the ⋯ menu no longer changes the window size.
+- **Default size on launch** — Every start opens at 380×680 (shrunk to fit a small screen). Last position is still restored.
+- **Snap display** — Settings → Snap display picks which monitor the snap hotkey (`Ctrl+Shift+M`) uses: primary, current, or a specific screen.
+
+### 1.0.2
+
+- Maintenance release of the Electrobun desktop app.
+
+### 1.0.1
+
+- First public release (Electrobun desktop app and browser mode).
+
 ## Features
 
 - **Capture text from anywhere** - Select text in another app and double-tap the configured capture key, or use the clipboard shortcut.
 - **Stage prompts and ideas** - Keep follow-up prompts in a queue while an AI tool or another task is still running.
-- **Floating workspace** - Keep Oxide above other windows, minimize it to a small pill, or snap it to a screen edge or corner.
+- **Floating workspace** - Keep Oxide above other windows, minimize it to a small pill, or snap it to a screen edge or corner on a chosen monitor.
 - **Organize with sections** - Create, rename, collapse, color, and reorder sections. Choose a default section for new captures.
 - **Drag and drop notes** - Reorder notes, move them between sections, and see a clear preview of where a dragged note will land.
 - **Search and filter** - Search notes quickly or hide completed items when you want a cleaner view.
