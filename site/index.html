@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Oxide</title>
+    <link rel="icon" href="/logo-dark.png" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <a class="brand" href="/">
+        <img src="/logo-dark.png" width="28" height="28" alt="" />
+        Oxide
+      </a>
+      <span class="quiet">v1.1.0 · local</span>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1>A scratchpad that<br />stays out of the way.</h1>
+        <p class="lede">
+          Capture selections, stage prompts, keep moving.
+          Everything lives on this machine.
+        </p>
+      </section>
+
+      <section class="shots" aria-label="Screenshots">
+        <figure>
+          <div class="frame">
+            <img src="/shots/panel.png" alt="The Oxide panel" />
+            <div class="slot">
+              <span>The panel</span>
+              <small>Save your screenshot as <code>site/shots/panel.png</code></small>
+            </div>
+          </div>
+        </figure>
+        <figure>
+          <div class="frame">
+            <img src="/shots/capture.png" alt="Capturing a selection" />
+            <div class="slot">
+              <span>Capture</span>
+              <small>Save as <code>site/shots/capture.png</code></small>
+            </div>
+          </div>
+        </figure>
+        <figure>
+          <div class="frame">
+            <img src="/shots/pill.png" alt="Minimized pill" />
+            <div class="slot">
+              <span>Pill</span>
+              <small>Save as <code>site/shots/pill.png</code></small>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="facts">
+        <p><em>Double-tap Shift</em> captures the current selection from any app.</p>
+        <p><em>Stay floating</em> above other windows, or shrink to a pill.</p>
+        <p><em>No accounts.</em> Notes are a JSON file. Nothing is uploaded.</p>
+      </section>
+    </main>
+
+    <script>
+      for (const img of document.querySelectorAll(".frame img")) {
+        const frame = img.closest(".frame");
+        const empty = () => frame.classList.add("empty");
+        img.addEventListener("error", empty);
+        if (img.complete && img.naturalWidth === 0) empty();
+      }
+    </script>
+  </body>
+</html>
