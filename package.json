@@ -3,6 +3,12 @@
   "version": "1.1.0",
   "private": true,
   "description": "Oxide is a floating, keyboard-first scratchpad for scattered AI work (Copper-style clone)",
+  "author": "HologramSteve <exlkip@gmail.com>",
+  "homepage": "https://github.com/HologramSteve/oxidized",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HologramSteve/oxidized.git"
+  },
   "main": "dist-electron/main.js",
   "devDependencies": {
     "@types/bun": "latest",
@@ -16,7 +22,7 @@
     "dev": "bun scripts/dev.ts",
     "start": "electron .",
     "build:app": "bun scripts/build-app.ts",
-    "build": "bun run build:app && electron-builder",
+    "build": "bun run build:app && electron-builder --publish never",
     "web": "bun serve.ts"
   }
 }
