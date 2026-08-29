@@ -11,8 +11,6 @@ export interface Note {
   deletedAt?: number;
   // flagged as important (amber accent in the list)
   important?: boolean;
-  // filename of the source-window screenshot in blobs/shots (desktop capture)
-  screenshot?: string;
 }
 
 export interface Section {
@@ -68,8 +66,6 @@ export interface OxideSettings {
   autoCompleteOnCopy: boolean;
   // pop the window back out of the pill when a capture lands
   expandOnCapture: boolean;
-  // screenshot the source window when a note is captured (Windows desktop)
-  captureScreenshot: boolean;
   // last panel position (logical px), restored on launch. Width/height in this
   // blob are ignored at startup — the window always opens at DEFAULT_WINDOW.
   window?: { width: number; height: number; x?: number; y?: number };
@@ -101,7 +97,6 @@ export const DEFAULT_SETTINGS: OxideSettings = {
   theme: "system",
   autoCompleteOnCopy: true,
   expandOnCapture: false,
-  captureScreenshot: true,
   hideCompleted: false,
   launchAtLogin: false,
   window: { ...DEFAULT_WINDOW },
@@ -149,7 +144,7 @@ export function mergeSettings(raw: unknown): OxideSettings {
     }
   }
 
-  return {
+  const merged: OxideSettings = {
     ...DEFAULT_SETTINGS,
     ...parsed,
     theme,
@@ -164,6 +159,8 @@ export function mergeSettings(raw: unknown): OxideSettings {
       doubleTapKey,
     },
   };
+  delete (merged as { captureScreenshot?: boolean }).captureScreenshot;
+  return merged;
 }
 
 // The desktop RPC contract (channels + payloads) lives in ./ipc.ts as

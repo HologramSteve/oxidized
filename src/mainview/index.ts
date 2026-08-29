@@ -44,8 +44,6 @@ interface PlatformBridge {
   windowResizeStart(): void;
   windowResizeEnd(): void;
   debug(text: string): void;
-  loadScreenshot(name: string): Promise<string | null>;
-  deleteScreenshot(name: string): void;
   exportNotes(json: string): Promise<boolean>;
   importNotes(): Promise<string | null>;
   listDisplays(): Promise<DisplayInfo[]>;
@@ -101,10 +99,6 @@ let bridge: PlatformBridge = {
   debug(text) {
     console.log("[oxide]", text);
   },
-  async loadScreenshot() {
-    return null; // capture screenshots are desktop-only
-  },
-  deleteScreenshot() {},
   async exportNotes(json) {
     const stamp = new Date().toISOString().slice(0, 10);
     const blob = new Blob([json], { type: "application/json" });
@@ -159,17 +153,12 @@ function initDesktopBridge() {
     windowResizeStart: () => oxide.windowResizeStart(),
     windowResizeEnd: () => oxide.windowResizeEnd(),
     debug: (text) => oxide.debug(text),
-    loadScreenshot: (name) => oxide.loadScreenshot(name),
-    deleteScreenshot: (name) => oxide.deleteScreenshot(name),
     exportNotes: (json) => oxide.exportNotes(json),
     importNotes: () => oxide.importNotes(),
     listDisplays: () => oxide.listDisplays(),
   };
-  oxide.onCapture(({ text, screenshot }: CapturePayload) => {
-    const note = addNote(text, state.activeSectionId);
-    // the text lands instantly; the screenshot chip is attached only
-    // once the PNG actually exists on disk
-    if (screenshot) attachScreenshotWhenReady(note.id, screenshot);
+  oxide.onCapture(({ text }: CapturePayload) => {
+    addNote(text, state.activeSectionId);
     sounds.capture();
     if (pillMode) {
       if (settings.expandOnCapture) expandFromPill();
@@ -271,6 +260,9 @@ function normalizeState(raw: unknown): AppState | null {
   for (const sec of s.sections) {
     if (typeof sec.id !== "string" || !Array.isArray(sec.notes)) return null;
     sec.collapsed = !!sec.collapsed;
+    for (const note of sec.notes) {
+      delete (note as { screenshot?: string }).screenshot;
+    }
   }
   // an old bug could land new notes in the hidden Trash section — anything
   // there without a deletedAt was never deleted, so pull it back out
@@ -462,18 +454,8 @@ function deleteNotes(
     const want = new Set(ids);
     if (!purge) pushUndo(ids);
     if (purge) {
-      const shots = new Set<string>();
       for (const section of state.sections) {
-        for (const n of section.notes) {
-          if (want.has(n.id) && n.screenshot) shots.add(n.screenshot);
-        }
         section.notes = section.notes.filter((n) => !want.has(n.id));
-      }
-      // remove screenshot files nothing references anymore (duplicates share)
-      for (const name of shots) {
-        if (!allNotes().some((e) => e.note.screenshot === name)) {
-          bridge.deleteScreenshot(name);
-        }
       }
     } else {
       // soft delete: move into the hidden Trash section
@@ -1205,93 +1187,6 @@ function timeAgo(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
-// screenshot preview state (not persisted): which notes show theirs, + cache
-const shotOpen = new Set<string>();
-const shotCache = new Map<string, string>(); // filename → base64 png
-
-/**
- * The screenshot helper writes its PNG ~1s after the capture note arrives.
- * Poll until the file exists, then attach it to the note (with the base64
- * already cached, so the first preview opens instantly).
- */
-function attachScreenshotWhenReady(noteId: string, name: string, attempt = 0) {
-  bridge.loadScreenshot(name).then((b64) => {
-    const entry = findNote(noteId);
-    if (b64) {
-      if (!entry) {
-        // note got purged while we waited — don't leave an orphan file
-        bridge.deleteScreenshot(name);
-        return;
-      }
-      shotCache.set(name, b64);
-      entry.note.screenshot = name;
-      persist();
-      renderListOnly();
-    } else if (attempt < 10 && entry) {
-      setTimeout(() => attachScreenshotWhenReady(noteId, name, attempt + 1), 600);
-    }
-    // helper failed (or note gone): the note simply stays screenshot-less
-  });
-}
-
-/** Camera chip + optional inline preview for a note's capture screenshot. */
-function renderShot(note: Note): HTMLElement {
-  const wrap = h("div", "card-shot-wrap");
-  const name = note.screenshot!;
-  const open = shotOpen.has(note.id);
-
-  const btn = h("button", "shot-btn" + (open ? " open" : ""));
-  btn.innerHTML =
-    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>' +
-    `<span>${open ? "Hide source" : "Source window"}</span>`;
-  btn.title = "Screenshot of the window this was captured from";
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (shotOpen.has(note.id)) shotOpen.delete(note.id);
-    else shotOpen.add(note.id);
-    renderListOnly();
-  });
-  wrap.appendChild(btn);
-
-  if (open) {
-    const holder = h("div", "card-shot");
-    const img = document.createElement("img");
-    img.alt = "source window";
-    img.draggable = false;
-    const cached = shotCache.get(name);
-    if (cached) {
-      img.src = "data:image/png;base64," + cached;
-    } else {
-      holder.classList.add("loading");
-      // the PNG may still be being written right after a capture — retry a few
-      // times before declaring it gone
-      const tryLoad = (attempt: number) => {
-        bridge.loadScreenshot(name).then((b64) => {
-          if (b64) {
-            shotCache.set(name, b64);
-            img.src = "data:image/png;base64," + b64;
-            holder.classList.remove("loading");
-          } else if (attempt < 4) {
-            setTimeout(() => tryLoad(attempt + 1), 700);
-          } else if (note.screenshot === name) {
-            // the shot never materialized — drop the dead reference
-            delete note.screenshot;
-            shotOpen.delete(note.id);
-            persist();
-            renderListOnly();
-            toast("Screenshot unavailable");
-          }
-        });
-      };
-      tryLoad(0);
-    }
-    holder.appendChild(img);
-    wrap.appendChild(holder);
-  }
-
-  return wrap;
-}
-
 function renderCard(note: Note, section: Section): HTMLElement {
   const card = h("div", "card");
   card.dataset.id = note.id;
@@ -1375,7 +1270,6 @@ function renderCard(note: Note, section: Section): HTMLElement {
     if (href) bridge.openExternal(href);
   });
   body.appendChild(textEl);
-  if (note.screenshot) body.appendChild(renderShot(note));
   card.appendChild(body);
 
   // creation time — a small chip that only shows while hovering the card
@@ -1876,17 +1770,6 @@ function renderSettingsView(panel: HTMLElement) {
       )
     );
     wrap.appendChild(
-      toggleRow(
-        "Screenshot on capture",
-        "Snap the window the text was selected from",
-        settings.captureScreenshot !== false,
-        (v) => {
-          settings.captureScreenshot = v;
-          void saveSettingsNow();
-        }
-      )
-    );
-    wrap.appendChild(
       shortcutRow(
         "Snap to position",
         "Send the panel to its home spot from anywhere",
@@ -2079,7 +1962,7 @@ function renderSettingsView(panel: HTMLElement) {
     h(
       "div",
       "storage-sub",
-      isDesktop ? "Notes, settings and screenshots stay on this device" : "Notes and settings stay in this browser"
+      isDesktop ? "Notes and settings stay on this device" : "Notes and settings stay in this browser"
     )
   );
   storageBody.appendChild(

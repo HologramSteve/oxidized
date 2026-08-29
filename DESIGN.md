@@ -1104,7 +1104,6 @@ This appendix maps the portable language back to the reference implementation. I
 - Generic content item: `.card`.
 - Generic group: `.section` and `.section-header`.
 - Generic leading state control: `.check`.
-- Generic inline media: `.card-shot`.
 - Generic settings row: `.set-row`.
 - Generic floating menu: `.ctxmenu`.
 - Generic temporary confirmation: `.toast`.
@@ -1118,7 +1117,6 @@ This appendix maps the portable language back to the reference implementation. I
 - Dragged item: `.card.dragging`.
 - Drop position: `.drop-preview`, `.card.drag-over-top`, and `.card.drag-over-bottom`.
 - Group collapsed state: `.section.collapsed`.
-- Loading media: `.card-shot.loading`.
 - Shortcut recording: `.shortcut-field.recording`.
 
 ### Reference motion mapping

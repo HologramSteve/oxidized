@@ -32,7 +32,6 @@ Everything stays local. There are no accounts, sync services, or telemetry.
 - **Work with batches** - Select notes to copy them as plain text, a numbered list, or Markdown. Merge, duplicate, mark important, archive, or delete them in batches.
 - **Archive and Trash** - Restore archived or deleted notes, or permanently remove items when you are ready.
 - **Markdown-lite notes** - Use bold, italics, inline code, and links inside note cards.
-- **Source screenshots** - On Windows, optionally capture a screenshot of the source window alongside a captured note.
 - **Personal settings** - Choose a light, dark, or system theme; configure sounds, shortcuts, capture behavior, and completion preferences.
 - **Backup** - Export and import notes as JSON. Window position, hide-completed, and launch-at-login persist on the desktop app.
 - **Tray** - The desktop app stays in the system tray so the panel can hide without quitting.
@@ -132,7 +131,7 @@ Right-click notes and sections for additional actions. Double-click a note to ed
 - **TypeScript** with strict type checking.
 - **Electron** for the native desktop window, preload IPC bridge, global shortcuts, and packaging (electron-builder).
 - **Vanilla TypeScript and CSS** for the interface. There is no frontend framework.
-- **Windows APIs and PowerShell helpers** for screenshot capture and the double-tap keyboard hook.
+- **Windows APIs and a PowerShell helper** for the double-tap keyboard hook.
 - **Local storage** through JSON files on desktop and browser `localStorage` in web mode.
 
 ## Project structure
@@ -172,8 +171,7 @@ Desktop data is stored under:
 %LOCALAPPDATA%\oxidized\
 |-- settings.json
 `-- blobs/
-    |-- notes.json
-    `-- shots/
+    `-- notes.json
 ```
 
 Oxide does not upload or synchronize this data.

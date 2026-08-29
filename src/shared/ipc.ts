@@ -15,7 +15,6 @@ export const CH = {
   copyText: "oxide:copyText",
   loadSettings: "oxide:loadSettings",
   saveSettings: "oxide:saveSettings",
-  loadScreenshot: "oxide:loadScreenshot",
   exportNotes: "oxide:exportNotes",
   importNotes: "oxide:importNotes",
   listDisplays: "oxide:listDisplays",
@@ -34,7 +33,6 @@ export const CH = {
   windowDragEnd: "oxide:windowDragEnd",
   windowResizeStart: "oxide:windowResizeStart",
   windowResizeEnd: "oxide:windowResizeEnd",
-  deleteScreenshot: "oxide:deleteScreenshot",
   debugLog: "oxide:debugLog",
   // one-way main -> renderer: webContents.send
   capture: "oxide:capture",
@@ -57,8 +55,6 @@ export interface DisplayInfo {
 /** Fired when the global capture shortcut grabs clipboard text. */
 export interface CapturePayload {
   text: string;
-  /** Filename of the (possibly still-being-written) source screenshot. */
-  screenshot?: string;
 }
 
 /** The API the preload exposes on window.oxide (desktop only). */
@@ -69,7 +65,6 @@ export interface OxideDesktopApi {
   copyText(text: string): Promise<boolean>;
   loadSettings(): Promise<string | null>;
   saveSettings(json: string): Promise<SaveSettingsResult>;
-  loadScreenshot(name: string): Promise<string | null>;
   exportNotes(json: string): Promise<boolean>;
   importNotes(): Promise<string | null>;
   listDisplays(): Promise<DisplayInfo[]>;
@@ -89,7 +84,6 @@ export interface OxideDesktopApi {
   windowDragEnd(): void;
   windowResizeStart(): void;
   windowResizeEnd(): void;
-  deleteScreenshot(name: string): void;
   debug(text: string): void;
   onCapture(cb: (payload: CapturePayload) => void): void;
 }

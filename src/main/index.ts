@@ -1,8 +1,8 @@
 // Oxide — floating, keyboard-first scratchpad.
 // Electron main process: window, global shortcuts, clipboard capture, JSON
-// storage, Windows-native helpers (PowerShell screenshot child, double-tap
-// keyboard hook). The UI lives in src/mainview; the renderer bridge is
-// src/main/preload.ts; the IPC contract is src/shared/ipc.ts.
+// storage, Windows-native helpers (double-tap keyboard hook). The UI lives
+// in src/mainview; the renderer bridge is src/main/preload.ts; the IPC
+// contract is src/shared/ipc.ts.
 
 import {
   app,
@@ -36,10 +36,9 @@ import {
   copyFileSync,
   readFileSync,
   writeFileSync,
-  unlinkSync,
+  rmSync,
 } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
 
 // ---------------------------------------------------------------------------
 // Local storage — everything under %LOCALAPPDATA%/oxidized:
@@ -52,7 +51,6 @@ const baseDir = join(
   "oxidized"
 );
 const blobsDir = join(baseDir, "blobs");
-const shotsDir = join(blobsDir, "shots");
 const settingsFile = join(baseDir, "settings.json");
 const dataFile = join(blobsDir, "notes.json");
 // pre-0.2 location, migrated on first load
@@ -60,11 +58,15 @@ const legacyDataFile = join(process.env.APPDATA || homedir(), "OxideNotes", "not
 
 function ensureDirs() {
   if (!existsSync(blobsDir)) mkdirSync(blobsDir, { recursive: true });
-  if (!existsSync(shotsDir)) mkdirSync(shotsDir, { recursive: true });
+  const leftoverShots = join(blobsDir, "shots");
+  if (existsSync(leftoverShots)) {
+    try {
+      rmSync(leftoverShots, { recursive: true, force: true });
+    } catch (err) {
+      console.error("[oxide] failed to remove leftover shots:", err);
+    }
+  }
 }
-
-// screenshot filenames are generated here and must stay path-safe
-const SHOT_NAME = /^[\w.-]+\.png$/;
 
 async function loadStateFile(): Promise<string | null> {
   try {
@@ -583,17 +585,6 @@ function registerIpc() {
       return null;
     }
   });
-  ipcMain.handle(CH.loadScreenshot, async (_e, p: { name: string }) => {
-    try {
-      if (!SHOT_NAME.test(p.name)) return null;
-      const f = join(shotsDir, p.name);
-      if (!existsSync(f)) return null;
-      return Buffer.from(await readFile(f)).toString("base64");
-    } catch (err) {
-      console.error("[oxide] loadScreenshot failed:", err);
-      return null;
-    }
-  });
 
   ipcMain.on(CH.hideWindow, () => hideWindow());
   ipcMain.on(CH.quitApp, () => quitApp());
@@ -621,15 +612,6 @@ function registerIpc() {
   ipcMain.on(CH.windowResizeEnd, () => stopWindowResize());
   ipcMain.on(CH.debugLog, (_e, p: { text: string }) => {
     console.log("[oxide:view]", p.text);
-  });
-  ipcMain.on(CH.deleteScreenshot, (_e, p: { name: string }) => {
-    try {
-      if (!SHOT_NAME.test(p.name)) return;
-      const f = join(shotsDir, p.name);
-      if (existsSync(f)) unlinkSync(f);
-    } catch (err) {
-      console.error("[oxide] deleteScreenshot failed:", err);
-    }
   });
   ipcMain.on(CH.setWindowSize, (_e, p: { width: number; height: number }) => {
     try {
@@ -748,66 +730,6 @@ function toggleWindow() {
 // ---------------------------------------------------------------------------
 let lastCapture = { text: "", at: 0 };
 
-// Screenshot the window the text was selected from. At capture time the
-// source app is still the foreground window (Oxide never takes focus), so
-// grab its DWM extended frame bounds and copy that screen region to a PNG.
-// Runs in a hidden PowerShell child, fire-and-forget: the capture note is
-// sent immediately with the predicted filename and the file lands ~1s later
-// (the webview retries loading briefly).
-function screenshotForeground(): string | null {
-  if (process.platform !== "win32" || settings.captureScreenshot === false) return null;
-  try {
-    ensureDirs();
-    const name = `shot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
-    // single-quoted PS string literal; ' is the only char needing escaping
-    const psPath = join(shotsDir, name).replace(/'/g, "''");
-    const script = `
-$ErrorActionPreference='Stop'
-Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-public class OxShot {
-  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
-  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int s);
-  [DllImport("user32.dll")] public static extern int SetProcessDpiAwarenessContext(long v);
-  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; }
-}
-'@
-Add-Type -AssemblyName System.Drawing
-[void][OxShot]::SetProcessDpiAwarenessContext(-4)
-$h=[OxShot]::GetForegroundWindow()
-if($h -eq [IntPtr]::Zero){exit 1}
-$r=New-Object OxShot+RECT
-if([OxShot]::DwmGetWindowAttribute($h,9,[ref]$r,16) -ne 0){[void][OxShot]::GetWindowRect($h,[ref]$r)}
-$w=$r.R-$r.L; $ht=$r.B-$r.T
-if($w -le 0 -or $ht -le 0){exit 1}
-$bmp=New-Object System.Drawing.Bitmap($w,$ht)
-$g=[System.Drawing.Graphics]::FromImage($bmp)
-$g.CopyFromScreen($r.L,$r.T,0,0,$bmp.Size)
-$bmp.Save('${psPath}',[System.Drawing.Imaging.ImageFormat]::Png)
-$g.Dispose(); $bmp.Dispose()
-`;
-    const encoded = Buffer.from(script, "utf16le").toString("base64");
-    spawn(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-WindowStyle",
-        "Hidden",
-        "-EncodedCommand",
-        encoded,
-      ],
-      { windowsHide: true, stdio: "ignore" }
-    );
-    return name;
-  } catch (err) {
-    console.error("[oxide] screenshot failed:", err);
-    return null;
-  }
-}
-
 async function captureClipboard() {
   try {
     const text = await clipboard.readText();
@@ -818,8 +740,7 @@ async function captureClipboard() {
     const now = Date.now();
     if (text === lastCapture.text && now - lastCapture.at < dedupeMs) return;
     lastCapture = { text, at: now };
-    const screenshot = screenshotForeground();
-    sendCapture(screenshot ? { text, screenshot } : { text });
+    sendCapture({ text });
   } catch (err) {
     console.error("[oxide] capture failed:", err);
   }
@@ -970,6 +891,7 @@ void app.whenReady().then(() => {
     // correct taskbar identity/pinning for the packaged + dev exe
     app.setAppUserModelId("nl.stevenrs.oxide");
   }
+  ensureDirs();
   applyNativeTheme();
   applyLoginItem();
   setupMenu();

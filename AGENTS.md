@@ -17,7 +17,7 @@ There are **no tests, no linter, no formatter** configured. `bunx tsc --noEmit` 
 
 ## Architecture
 
-- `src/main/index.ts` — Electron main process: window, global shortcuts, clipboard capture, JSON storage, Windows-native helpers (PowerShell screenshot child, double-tap keyboard hook). No `bun:ffi`: Electron is DPI-aware and provides `screen`/`clipboard`/`shell`/`globalShortcut`.
+- `src/main/index.ts` — Electron main process: window, global shortcuts, clipboard capture, JSON storage, Windows-native helper (double-tap keyboard hook). No `bun:ffi`: Electron is DPI-aware and provides `screen`/`clipboard`/`shell`/`globalShortcut`.
 - `src/main/preload.ts` — sandboxed preload: `contextBridge` exposes the typed `OxideDesktopApi` as `window.oxide` (contract + channel names in `src/shared/ipc.ts`). The renderer never gets Node.
 - `src/mainview/index.ts` — the entire UI: state, rendering, keyboard nav, settings. A `PlatformBridge` abstracts desktop vs. browser via `isDesktop = !!window.oxide`; desktop calls the preload API, browser uses `localStorage` keys `oxide-state-v1` / `oxide-settings-v1`.
 - `src/shared/types.ts` — shared state types + `DEFAULT_SETTINGS`. Must stay pure data (no imports) so it's safe in both contexts. The IPC contract lives in `src/shared/ipc.ts` (pure constants/types too).
@@ -28,10 +28,9 @@ There are **no tests, no linter, no formatter** configured. `bunx tsc --noEmit` 
 
 ## Storage
 
-- Desktop: `%LOCALAPPDATA%\oxidized\settings.json`, `blobs/notes.json`, `blobs/shots/` (non-Windows: `~/.local/share/oxidized`). One-time migration from legacy `%APPDATA%\OxideNotes\notes.json`.
+- Desktop: `%LOCALAPPDATA%\oxidized\settings.json`, `blobs/notes.json` (non-Windows: `~/.local/share/oxidized`). One-time migration from legacy `%APPDATA%\OxideNotes\notes.json`.
 - State is a single JSON blob; the view debounces saves 350 ms (`persist()`), then IPC `saveState`.
 - Settings load merges over `DEFAULT_SETTINGS` — **every new setting needs a default there**, or existing settings files get `undefined`.
-- Screenshot filenames are predicted before the PNG exists; the view retries `loadScreenshot` briefly. The main process validates names against `SHOT_NAME` and deletes shots no note references — keep filenames path-safe.
 
 ## Gotchas
 
