@@ -95,6 +95,20 @@ To publish a version:
 
 The version must be a new `X.Y.Z` semantic version. The workflow also updates the version shown in the About screen. No local tag or release command is needed.
 
+## Marketing site
+
+The page in `site/` is deployed to GitHub Pages by the **Site** workflow on every push to `main` that touches `site/`, and on manual **Run workflow**.
+
+Live: [https://hologramsteve.github.io/oxidized/](https://hologramsteve.github.io/oxidized/)
+
+Local preview:
+
+```sh
+bun run site
+```
+
+Then open `http://localhost:5173`. Drop screenshots in `site/shots/1.png` … `4.png` and commit them so they ship with the page.
+
 ## Shortcuts
 
 Global shortcuts are configurable in Settings.

@@ -23,6 +23,7 @@ There are **no tests, no linter, no formatter** configured. `bunx tsc --noEmit` 
 - `src/shared/types.ts` — shared state types + `DEFAULT_SETTINGS`. Must stay pure data (no imports) so it's safe in both contexts. The IPC contract lives in `src/shared/ipc.ts` (pure constants/types too).
 - `src/main/shiftshift.ts` — Windows double-Shift capture: a low-level keyboard hook run as a hidden PowerShell/C# child over stdout.
 - `serve.ts` — browser dev server, and the dev Electron renderer; bundles `src/mainview/index.ts` on the fly with `Bun.build`.
+- `site/` — static marketing page (`bun run site` → localhost:5173). Deployed to GitHub Pages by `.github/workflows/site.yml`.
 - `electron-builder.yml` — packaging: appId, icons, targets (NSIS/zip, dmg/zip, AppImage/deb), output → `artifacts/`.
 - `DESIGN.md` — the visual language spec; its appendix maps CSS classes to `src/mainview/style.css`. Keep style changes consistent with it.
 

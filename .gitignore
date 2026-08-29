@@ -26,6 +26,3 @@ TODO.md
 
 # accidental Windows NUL device dump from shell redirects
 /NUL
-
-# local about-page screenshots (drop PNGs into site/shots/)
-site/shots/*.png

@@ -4,71 +4,114 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Oxide</title>
-    <link rel="icon" href="/logo-dark.png" />
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="icon" href="logo-dark.png" />
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header class="bar">
-      <a class="brand" href="/">
-        <img src="/logo-dark.png" width="28" height="28" alt="" />
+      <a class="brand" href="./">
+        <img src="logo-dark.png" width="28" height="28" alt="" />
         Oxide
       </a>
-      <span class="quiet">v1.1.0 · local</span>
+      <span class="quiet">v1.1.1</span>
     </header>
 
-    <main>
-      <section class="hero">
-        <h1>A scratchpad that<br />stays out of the way.</h1>
-        <p class="lede">
-          Capture selections, stage prompts, keep moving.
-          Everything lives on this machine.
-        </p>
-      </section>
+    <section class="hero">
+      <h1>A scratchpad that<br />stays out of the way.</h1>
+      <p class="lede">
+        Capture selections, stage prompts, keep moving.
+        Everything lives on this machine.
+      </p>
+    </section>
 
-      <section class="shots" aria-label="Screenshots">
-        <figure>
-          <div class="frame">
-            <img src="/shots/panel.png" alt="The Oxide panel" />
-            <div class="slot">
-              <span>The panel</span>
-              <small>Save your screenshot as <code>site/shots/panel.png</code></small>
+    <section class="showcase" aria-label="Features">
+      <article class="feature">
+        <div class="shot">
+          <div class="mock">
+            <div class="ui-top">
+              <div class="ui-search">Search</div>
+              <div class="ui-ico">⋯</div>
             </div>
+            <div class="ui-toast">Captured</div>
+            <div class="ui-sec">Welcome</div>
+            <div class="ui-card new">Selected text lands as a note.</div>
+            <div class="ui-card">You never leave the other window.</div>
+            <div class="ui-composer">Add a note or prompt</div>
           </div>
-        </figure>
-        <figure>
-          <div class="frame">
-            <img src="/shots/capture.png" alt="Capturing a selection" />
-            <div class="slot">
-              <span>Capture</span>
-              <small>Save as <code>site/shots/capture.png</code></small>
-            </div>
-          </div>
-        </figure>
-        <figure>
-          <div class="frame">
-            <img src="/shots/pill.png" alt="Minimized pill" />
-            <div class="slot">
-              <span>Pill</span>
-              <small>Save as <code>site/shots/pill.png</code></small>
-            </div>
-          </div>
-        </figure>
-      </section>
+          <img src="shots/1.png" alt="Capture" onerror="this.remove()" />
+        </div>
+        <p class="kicker">Capture</p>
+        <h2>Double-tap Shift.</h2>
+        <p>Selected text becomes a note. The other app never loses focus.</p>
+      </article>
 
-      <section class="facts">
-        <p><em>Double-tap Shift</em> captures the current selection from any app.</p>
-        <p><em>Stay floating</em> above other windows, or shrink to a pill.</p>
-        <p><em>No accounts.</em> Notes are a JSON file. Nothing is uploaded.</p>
-      </section>
-    </main>
+      <article class="feature">
+        <div class="shot">
+          <div class="mock">
+            <div class="ui-top">
+              <div class="ui-search">Search</div>
+              <div class="ui-ico">–</div>
+            </div>
+            <div class="ui-sec">Prompt queue</div>
+            <div class="ui-card">Always on top of the work.</div>
+            <div class="ui-card">Drag from empty space. Snap home.</div>
+            <div class="ui-card">Pick the monitor. Pick the corner.</div>
+            <div class="ui-composer">Add a note or prompt</div>
+          </div>
+          <img src="shots/2.png" alt="Float" onerror="this.remove()" />
+        </div>
+        <p class="kicker">Float</p>
+        <h2>Always in reach.</h2>
+        <p>Stay on top, drag from empty space, snap to a corner you choose.</p>
+      </article>
 
-    <script>
-      for (const img of document.querySelectorAll(".frame img")) {
-        const frame = img.closest(".frame");
-        const empty = () => frame.classList.add("empty");
-        img.addEventListener("error", empty);
-        if (img.complete && img.naturalWidth === 0) empty();
-      }
-    </script>
+      <article class="feature">
+        <div class="shot">
+          <div class="mock">
+            <div class="ui-top">
+              <div class="ui-search">Search</div>
+              <div class="ui-ico">⋯</div>
+            </div>
+            <div class="ui-sec tint">Prompt queue</div>
+            <div class="ui-card tint">Rewrite this in a calmer tone.</div>
+            <div class="ui-sec">Later</div>
+            <div class="ui-card">Drag between sections.</div>
+            <div class="ui-composer">Add a note or prompt</div>
+          </div>
+          <img src="shots/3.png" alt="Organize" onerror="this.remove()" />
+        </div>
+        <p class="kicker">Organize</p>
+        <h2>A queue, not an inbox.</h2>
+        <p>Sections, colors, drag and drop. Stage prompts while something else runs.</p>
+      </article>
+
+      <article class="feature">
+        <div class="shot">
+          <div class="mock">
+            <div class="ui-top">
+              <div class="ui-search">Search</div>
+              <div class="ui-ico">⋯</div>
+            </div>
+            <div class="ui-sec">On this machine</div>
+            <div class="ui-card done"><s>No account. No cloud.</s></div>
+            <div class="ui-card">JSON in local app data.</div>
+            <div class="ui-card">Export and import anytime.</div>
+            <div class="ui-composer">Add a note or prompt</div>
+          </div>
+          <img src="shots/4.png" alt="Local" onerror="this.remove()" />
+        </div>
+        <p class="kicker">Local</p>
+        <h2>No account. No upload.</h2>
+        <p>Notes are a JSON file on disk. Export whenever you want.</p>
+      </article>
+    </section>
+
+    <footer class="foot">
+      <div class="foot-inner">
+        <span>Oxide</span>
+        <span>Public domain · Unlicense</span>
+        <a href="https://github.com/HologramSteve/oxidized">GitHub</a>
+      </div>
+    </footer>
   </body>
 </html>

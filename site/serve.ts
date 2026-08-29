@@ -1,6 +1,6 @@
-// Local-only Oxide page. bun run site  →  http://localhost:4840
+// Local-only Oxide page. bun run site  →  http://localhost:5173
 
-const PORT = 4840;
+const PORT = 5173;
 const root = import.meta.dir;
 
 Bun.serve({
