@@ -241,8 +241,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "$(find release-assets -type f -print -quit)" ]; then
-            echo "No downloaded release artifacts found."
+          mapfile -t assets < <(find release-assets -maxdepth 1 -type f \( \
+            -name '*.exe' -o -name '*.zip' -o -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' \
+          \) | sort)
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "No installer files found in release-assets/."
             exit 1
           fi
 
@@ -251,4 +254,4 @@ jobs:
             --title "Oxide $TAG" \
             --generate-notes \
             --verify-tag \
-            release-assets/*
+            "${assets[@]}"
