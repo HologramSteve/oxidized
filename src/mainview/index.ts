@@ -2008,7 +2008,7 @@ function renderSettingsView(panel: HTMLElement) {
 // Info / about page
 // ---------------------------------------------------------------------------
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.1.1";
 const GITHUB_URL = "https://github.com/HologramSteve/oxidized";
 const X_URL = "https://x.com/deepseekailover";
 
