@@ -7,6 +7,7 @@
 }
 
 :root {
+  color-scheme: light;
   --panel-bg: #ececee;
   --panel-border: rgba(255, 255, 255, 0.55);
   --card-bg: #ffffff;
@@ -14,6 +15,7 @@
   --card-bg-done: #f6f6f7;
   --card-bg-selected: #f3f8ff;
   --focus-border: rgba(0, 0, 0, 0.16);
+  --focus-halo: rgba(0, 0, 0, 0.05);
   --text: #1d1d1f;
   --text-dim: #86868b;
   --text-faint: #aeaeb2;
@@ -22,6 +24,7 @@
   --ring: rgba(0, 122, 255, 0.5);
   --done: #007aff; /* completed check circle: blue with white checkmark */
   --danger: #d64541;
+  --danger-soft: rgba(214, 69, 65, 0.1);
   --hairline: rgba(0, 0, 0, 0.09);
   --menu-bg: #fafafa;
   --field-bg: #f1f1f3;
@@ -36,15 +39,22 @@
   --pill-grip: #b6b6bc;
   --important: #ff9f0a; /* amber flag */
   --important-soft: rgba(255, 159, 10, 0.14);
+  --pastel-ink: #3c3c3f; /* dark text on pastel chips, both themes */
+  --swatch-ring: rgba(0, 0, 0, 0.12);
+  --web-backdrop: linear-gradient(135deg, #3d5a80 0%, #6b8cae 50%, #a8bdd0 100%);
   --radius-panel: 18px;
   --radius-card: 12px;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.04);
   --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-shell: 0 12px 40px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-menu: 0 8px 30px rgba(0, 0, 0, 0.18);
+  --shadow-seg: 0 1px 2px rgba(0, 0, 0, 0.12);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, sans-serif;
 }
 
 /* dark theme — applied via data-theme, resolved from the Appearance setting */
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --panel-bg: #1f1f21;
   --panel-border: rgba(255, 255, 255, 0.09);
   --card-bg: #2b2b2e;
@@ -52,6 +62,7 @@
   --card-bg-done: #26262a;
   --card-bg-selected: #263140;
   --focus-border: rgba(255, 255, 255, 0.22);
+  --focus-halo: rgba(255, 255, 255, 0.08);
   --text: #f2f2f4;
   --text-dim: #9a9aa0;
   --text-faint: #6f6f76;
@@ -60,6 +71,7 @@
   --ring: rgba(10, 132, 255, 0.55);
   --done: #0a84ff;
   --danger: #ff5f57;
+  --danger-soft: rgba(255, 95, 87, 0.16);
   --hairline: rgba(255, 255, 255, 0.1);
   --menu-bg: #2c2c2f;
   --field-bg: #3a3a3e;
@@ -74,8 +86,13 @@
   --pill-grip: #6f6f76;
   --important: #ffb340;
   --important-soft: rgba(255, 179, 64, 0.16);
+  --swatch-ring: rgba(255, 255, 255, 0.18);
+  --web-backdrop: linear-gradient(135deg, #121218 0%, #1c1c28 50%, #161820 100%);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.2);
   --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-shell: 0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-menu: 0 8px 30px rgba(0, 0, 0, 0.45);
+  --shadow-seg: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 html,
@@ -92,7 +109,7 @@ body {
 
 /* In a plain browser tab give it a desktop-ish backdrop so it still looks nice */
 body.web-mode {
-  background: linear-gradient(135deg, #3d5a80 0%, #6b8cae 50%, #a8bdd0 100%);
+  background: var(--web-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -116,7 +133,7 @@ body.web-mode #app {
   background: var(--panel-bg);
   border-radius: var(--radius-panel);
   border: 1px solid var(--panel-border);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-shell);
   overflow: hidden;
 }
 
@@ -245,7 +262,7 @@ body.web-mode #app {
 .section-title.tinted {
   padding: 2px 9px;
   border-radius: 100px;
-  color: #3c3c3f;
+  color: var(--pastel-ink);
 }
 
 .section-rule {
@@ -329,7 +346,7 @@ body.web-mode #app {
 
 .card.focused:not(.selected) {
   border-color: var(--focus-border);
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05), var(--shadow-card);
+  box-shadow: 0 0 0 3px var(--focus-halo), var(--shadow-card);
 }
 
 .card.drag-over-top,
@@ -408,7 +425,7 @@ body.web-mode #app {
 
 .tinted-section .section-count {
   background: color-mix(in srgb, var(--sec-tint) 55%, transparent);
-  color: #3c3c3f;
+  color: var(--pastel-ink);
   padding: 1px 7px;
   border-radius: 100px;
   font-weight: 600;
@@ -513,6 +530,25 @@ body.web-mode #app {
 
 .card-text a:hover {
   text-decoration: underline;
+}
+
+.card-text .hl,
+.card-text mark {
+  background: var(--important-soft);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* important: amber accent stripe down the card's left edge */
@@ -712,10 +748,13 @@ body.web-mode #app {
   position: fixed;
   z-index: 1000;
   min-width: 190px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  scrollbar-width: thin;
   background: var(--menu-bg);
   border-radius: 11px;
   border: 1px solid var(--hairline);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-menu);
   padding: 4px;
   user-select: none;
 }
@@ -741,7 +780,7 @@ body.web-mode #app {
 }
 
 .ctxmenu-item.danger:hover {
-  background: rgba(214, 69, 65, 0.1);
+  background: var(--danger-soft);
 }
 
 .ctxmenu-item.disabled {
@@ -766,7 +805,7 @@ body.web-mode #app {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 0 0 1px var(--swatch-ring);
 }
 
 .ctxmenu-kbd {
@@ -781,13 +820,6 @@ body.web-mode #app {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-faint);
-}
-
-/* web mode can't grow its window — cap and scroll instead */
-body.web-mode .ctxmenu {
-  max-height: calc(100vh - 16px);
-  overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 /* ------------------------------------------------------------------ toast */
@@ -995,24 +1027,29 @@ body.web-mode .ctxmenu {
 
 .resize-grip {
   position: absolute;
-  right: 3px;
-  bottom: 3px;
-  width: 18px;
-  height: 18px;
+  /* inset past the panel's 18px radius — the window-corner crescent is
+     fully transparent and click-through on a layered HWND */
+  right: 10px;
+  bottom: 10px;
+  width: 22px;
+  height: 22px;
   cursor: nwse-resize;
-  z-index: 5;
-  opacity: 0.45;
+  z-index: 20;
+  opacity: 0.5;
   transition: opacity 0.15s ease;
-  /* two diagonal strokes, macOS-corner style */
-  background: linear-gradient(
-    135deg,
-    transparent 0 52%,
-    var(--text-faint) 52% 58%,
-    transparent 58% 68%,
-    var(--text-faint) 68% 74%,
-    transparent 74%
-  );
-  border-bottom-right-radius: 15px;
+  touch-action: none;
+  /* faint fill so the whole box hit-tests; two diagonal strokes on top */
+  background:
+    linear-gradient(
+      135deg,
+      transparent 0 52%,
+      var(--text-faint) 52% 58%,
+      transparent 58% 68%,
+      var(--text-faint) 68% 74%,
+      transparent 74%
+    ),
+    rgba(128, 128, 128, 0.08);
+  border-bottom-right-radius: 6px;
 }
 
 .resize-grip:hover {
@@ -1411,7 +1448,7 @@ body.web-mode .ctxmenu {
     border-color: var(--ring);
   }
   50% {
-    border-color: rgba(0, 122, 255, 0.15);
+    border-color: var(--accent-soft);
   }
 }
 
@@ -1447,7 +1484,7 @@ body.web-mode .ctxmenu {
 .seg-btn.on {
   background: var(--card-bg);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-seg);
 }
 
 /* --------------------------------------------------------------- info page */

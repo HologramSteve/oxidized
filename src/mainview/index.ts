@@ -1,22 +1,25 @@
 // Oxide — floating, keyboard-first scratchpad for scattered AI work.
-// Runs both as a plain website and inside an Electrobun webview.
+// Runs both as a plain website and inside the Electron window.
 
 import {
-  DEFAULT_SETTINGS,
+  DEFAULT_WINDOW,
+  MIN_WINDOW,
+  mergeSettings,
   type AppState,
   type Note,
-  type OxideRPC,
   type OxideSettings,
   type Section,
 } from "../shared/types";
+import type { CapturePayload, DisplayInfo, SaveSettingsResult } from "../shared/ipc";
 import { setSoundsEnabled, sounds } from "./sounds";
 import { LOGO_DARK, LOGO_LIGHT } from "./logo";
 
 // ---------------------------------------------------------------------------
-// Platform adapter: Electrobun RPC on desktop, localStorage in the browser
+// Platform adapter: Electron preload API (window.oxide) on desktop,
+// localStorage in the browser
 // ---------------------------------------------------------------------------
 
-const isDesktop = location.protocol === "views:";
+const isDesktop = !!window.oxide;
 const LS_KEY = "oxide-state-v1";
 const SETTINGS_LS_KEY = "oxide-settings-v1";
 
@@ -28,13 +31,7 @@ interface PlatformBridge {
   quit(): void;
   setPin(value: boolean): void;
   loadSettings(): Promise<string | null>;
-  saveSettings(
-    json: string
-  ): Promise<{
-    togglePanelOk: boolean;
-    captureClipboardOk: boolean;
-    snapWindowOk: boolean;
-  } | null>;
+  saveSettings(json: string): Promise<SaveSettingsResult | null>;
   setWindowSize(width: number, height: number): void;
   pillShrink(width: number, height: number): void;
   pillRestore(): void;
@@ -44,13 +41,15 @@ interface PlatformBridge {
   openDataDir(): void;
   windowDragStart(): void;
   windowDragEnd(): void;
+  windowResizeStart(): void;
+  windowResizeEnd(): void;
   debug(text: string): void;
   loadScreenshot(name: string): Promise<string | null>;
   deleteScreenshot(name: string): void;
+  exportNotes(json: string): Promise<boolean>;
+  importNotes(): Promise<string | null>;
+  listDisplays(): Promise<DisplayInfo[]>;
 }
-
-// CSS px → physical device px, using this window's actual per-monitor scale
-const phys = (n: number) => Math.round(n * (window.devicePixelRatio || 1));
 
 let bridge: PlatformBridge = {
   async load() {
@@ -97,6 +96,8 @@ let bridge: PlatformBridge = {
   openDataDir() {},
   windowDragStart() {},
   windowDragEnd() {},
+  windowResizeStart() {},
+  windowResizeEnd() {},
   debug(text) {
     console.log("[oxide]", text);
   },
@@ -104,59 +105,78 @@ let bridge: PlatformBridge = {
     return null; // capture screenshots are desktop-only
   },
   deleteScreenshot() {},
+  async exportNotes(json) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([json], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `oxide-notes-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return true;
+  },
+  async importNotes() {
+    return new Promise<string | null>((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "application/json,.json";
+      input.addEventListener("change", async () => {
+        const file = input.files?.[0];
+        resolve(file ? await file.text() : null);
+      });
+      input.click();
+    });
+  },
+  async listDisplays() {
+    return [];
+  },
 };
 
-async function initDesktopBridge() {
-  const { Electroview } = await import("electrobun/view");
-  const rpc = Electroview.defineRPC<OxideRPC>({
-    handlers: {
-      requests: {},
-      messages: {
-        capture: ({ text, screenshot }: { text: string; screenshot?: string }) => {
-          const note = addNote(text, state.activeSectionId);
-          // the text lands instantly; the screenshot chip is attached only
-          // once the PNG actually exists on disk
-          if (screenshot) attachScreenshotWhenReady(note.id, screenshot);
-          sounds.capture();
-          if (pillMode) {
-            if (settings.expandOnCapture) expandFromPill();
-            else flashPill();
-          }
-          toast("Captured");
-        },
-      },
-    },
-  });
-  const electroview = new Electroview({ rpc });
+function initDesktopBridge() {
+  const oxide = window.oxide!;
   bridge = {
-    load: () => electroview.rpc!.request.loadState({}),
+    load: () => oxide.loadState(),
     save: (json) => {
-      electroview.rpc!.request.saveState({ json }).catch((err: unknown) => {
+      oxide.saveState(json).catch((err: unknown) => {
         console.error("saveState failed", err);
       });
     },
-    copy: (text) => electroview.rpc!.request.copyText({ text }),
-    hide: () => electroview.rpc!.send.hideWindow({}),
-    quit: () => electroview.rpc!.send.quitApp({}),
-    setPin: (value) => electroview.rpc!.send.setAlwaysOnTop({ value }),
-    loadSettings: () => electroview.rpc!.request.loadSettings({}),
-    saveSettings: (json) => electroview.rpc!.request.saveSettings({ json }),
-    setWindowSize: (width, height) =>
-      electroview.rpc!.send.setWindowSize({ width: phys(width), height: phys(height) }),
-    pillShrink: (width, height) =>
-      electroview.rpc!.send.pillShrink({ width: phys(width), height: phys(height) }),
-    pillRestore: () => electroview.rpc!.send.pillRestore({}),
-    menuGrow: (width, height) =>
-      electroview.rpc!.send.menuGrow({ width: phys(width), height: phys(height) }),
-    menuRestore: () => electroview.rpc!.send.menuRestore({}),
-    openExternal: (url) => electroview.rpc!.send.openExternal({ url }),
-    openDataDir: () => electroview.rpc!.send.openDataDir({}),
-    windowDragStart: () => electroview.rpc!.send.windowDragStart({}),
-    windowDragEnd: () => electroview.rpc!.send.windowDragEnd({}),
-    debug: (text) => electroview.rpc!.send.debugLog({ text }),
-    loadScreenshot: (name) => electroview.rpc!.request.loadScreenshot({ name }),
-    deleteScreenshot: (name) => electroview.rpc!.send.deleteScreenshot({ name }),
+    copy: (text) => oxide.copyText(text),
+    hide: () => oxide.hideWindow(),
+    quit: () => oxide.quitApp(),
+    setPin: (value) => oxide.setAlwaysOnTop(value),
+    loadSettings: () => oxide.loadSettings(),
+    saveSettings: (json) => oxide.saveSettings(json),
+    setWindowSize: (width, height) => oxide.setWindowSize(width, height),
+    pillShrink: (width, height) => oxide.pillShrink(width, height),
+    pillRestore: () => oxide.pillRestore(),
+    menuGrow: (width, height) => oxide.menuGrow(width, height),
+    menuRestore: () => oxide.menuRestore(),
+    openExternal: (url) => oxide.openExternal(url),
+    openDataDir: () => oxide.openDataDir(),
+    windowDragStart: () => oxide.windowDragStart(),
+    windowDragEnd: () => oxide.windowDragEnd(),
+    windowResizeStart: () => oxide.windowResizeStart(),
+    windowResizeEnd: () => oxide.windowResizeEnd(),
+    debug: (text) => oxide.debug(text),
+    loadScreenshot: (name) => oxide.loadScreenshot(name),
+    deleteScreenshot: (name) => oxide.deleteScreenshot(name),
+    exportNotes: (json) => oxide.exportNotes(json),
+    importNotes: () => oxide.importNotes(),
+    listDisplays: () => oxide.listDisplays(),
   };
+  oxide.onCapture(({ text, screenshot }: CapturePayload) => {
+    const note = addNote(text, state.activeSectionId);
+    // the text lands instantly; the screenshot chip is attached only
+    // once the PNG actually exists on disk
+    if (screenshot) attachScreenshotWhenReady(note.id, screenshot);
+    sounds.capture();
+    if (pillMode) {
+      if (settings.expandOnCapture) expandFromPill();
+      else flashPill();
+    }
+    toast("Captured");
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -172,10 +192,9 @@ let editingId: string | null = null;
 let renamingSectionId: string | null = null;
 let query = "";
 let pinned = true;
-let hideCompleted = false;
 let view: "list" | "settings" | "info" = "list";
 let pillMode = false;
-let settings: OxideSettings = structuredClone(DEFAULT_SETTINGS);
+let settings: OxideSettings = mergeSettings(null);
 const SETTINGS_PAGE_SIZE = 3;
 let archiveVisibleCount = SETTINGS_PAGE_SIZE;
 let trashVisibleCount = SETTINGS_PAGE_SIZE;
@@ -197,6 +216,11 @@ function navigateTo(next: "list" | "settings" | "info") {
   if (view === "settings" && next !== "settings") resetSettingsPagination();
   view = next;
   render();
+  if (next === "settings") {
+    void refreshSnapDisplays().then(() => {
+      if (view === "settings") render();
+    });
+  }
 }
 
 function seedState(): AppState {
@@ -288,12 +312,87 @@ function allNotes(): { note: Note; section: Section }[] {
   return out;
 }
 
-function findNote(id: string) {
-  return allNotes().find((n) => n.note.id === id) ?? null;
+function findNote(id: string): { note: Note; section: Section } | null {
+  for (const section of state.sections) {
+    for (const note of section.notes) {
+      if (note.id === id) return { note, section };
+    }
+  }
+  return null;
+}
+
+function findNotes(ids: string[]): { note: Note; section: Section }[] {
+  const want = new Set(ids);
+  if (want.size === 0) return [];
+  const out: { note: Note; section: Section }[] = [];
+  for (const section of state.sections) {
+    for (const note of section.notes) {
+      if (want.has(note.id)) out.push({ note, section });
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Undo (delete / archive). Soft-moves are reversible; purges are not.
+// ---------------------------------------------------------------------------
+interface UndoPlacement {
+  note: Note;
+  sectionId: string;
+  index: number;
+}
+
+const UNDO_LIMIT = 20;
+const undoStack: UndoPlacement[][] = [];
+
+function snapshotPlacements(ids: string[]): UndoPlacement[] {
+  const want = new Set(ids);
+  const out: UndoPlacement[] = [];
+  for (const section of state.sections) {
+    section.notes.forEach((note, index) => {
+      if (want.has(note.id)) out.push({ note: { ...note }, sectionId: section.id, index });
+    });
+  }
+  return out;
+}
+
+function pushUndo(ids: string[]) {
+  const snap = snapshotPlacements(ids);
+  if (snap.length === 0) return;
+  undoStack.push(snap);
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+}
+
+function undoLast() {
+  const snap = undoStack.pop();
+  if (!snap) {
+    toast("Nothing to undo");
+    return;
+  }
+  const want = new Set(snap.map((p) => p.note.id));
+  for (const section of state.sections) {
+    section.notes = section.notes.filter((n) => !want.has(n.id));
+  }
+  for (const item of snap) {
+    const note: Note = { ...item.note };
+    delete note.deletedAt;
+    const dest =
+      state.sections.find((s) => s.id === item.sectionId) ??
+      state.sections.find((s) => !isHidden(s));
+    if (!dest) continue;
+    const idx = Math.max(0, Math.min(item.index, dest.notes.length));
+    dest.notes.splice(idx, 0, note);
+    animNew.add(note.id);
+  }
+  persist();
+  if (view === "list") renderListOnly();
+  else render();
+  sounds.pop();
+  toast("Undone");
 }
 
 function matchesQuery(note: Note): boolean {
-  if (hideCompleted && note.done) return false;
+  if (settings.hideCompleted && note.done) return false;
   if (!query) return true;
   return note.text.toLowerCase().includes(query.toLowerCase());
 }
@@ -338,7 +437,7 @@ function targetIds(): string[] {
 }
 
 function toggleDone(ids: string[]) {
-  const entries = ids.map(findNote).filter(Boolean) as { note: Note; section: Section }[];
+  const entries = findNotes(ids);
   if (entries.length === 0) return;
   const markDone = entries.some((e) => !e.note.done);
   for (const e of entries) {
@@ -360,13 +459,15 @@ function deleteNotes(
   const { animate = true, sound = true, purge = false } = opts;
 
   const doRemove = () => {
+    const want = new Set(ids);
+    if (!purge) pushUndo(ids);
     if (purge) {
       const shots = new Set<string>();
       for (const section of state.sections) {
         for (const n of section.notes) {
-          if (ids.includes(n.id) && n.screenshot) shots.add(n.screenshot);
+          if (want.has(n.id) && n.screenshot) shots.add(n.screenshot);
         }
-        section.notes = section.notes.filter((n) => !ids.includes(n.id));
+        section.notes = section.notes.filter((n) => !want.has(n.id));
       }
       // remove screenshot files nothing references anymore (duplicates share)
       for (const name of shots) {
@@ -382,7 +483,7 @@ function deleteNotes(
         if (section === trash) continue;
         const stay: Note[] = [];
         for (const n of section.notes) {
-          if (ids.includes(n.id)) moving.push(n);
+          if (want.has(n.id)) moving.push(n);
           else stay.push(n);
         }
         section.notes = stay;
@@ -391,13 +492,13 @@ function deleteNotes(
       trash.notes.push(...moving);
     }
     for (const id of ids) selected.delete(id);
-    if (focusedId && ids.includes(focusedId)) focusedId = null;
+    if (focusedId && want.has(focusedId)) focusedId = null;
     if (sound) sounds.remove();
     persist();
     renderListOnly();
   };
 
-  if (animate) {
+  if (animate && allowMotion()) {
     const els = ids
       .map((id) => document.querySelector(`.card[data-id="${CSS.escape(id)}"]`))
       .filter(Boolean) as HTMLElement[];
@@ -411,7 +512,7 @@ function deleteNotes(
 }
 
 function toggleImportant(ids: string[]) {
-  const entries = ids.map(findNote).filter(Boolean) as { note: Note; section: Section }[];
+  const entries = findNotes(ids);
   if (entries.length === 0) return;
   const markImportant = entries.some((e) => !e.note.important);
   for (const e of entries) {
@@ -426,11 +527,12 @@ function toggleImportant(ids: string[]) {
 }
 
 function duplicateNotes(ids: string[]) {
+  const want = new Set(ids);
   const copies: Note[] = [];
   for (const section of state.sections) {
     for (let i = section.notes.length - 1; i >= 0; i--) {
       const n = section.notes[i];
-      if (!ids.includes(n.id)) continue;
+      if (!want.has(n.id)) continue;
       const copy: Note = { ...n, id: uid(), createdAt: Date.now() };
       section.notes.splice(i + 1, 0, copy);
       copies.push(copy);
@@ -450,7 +552,8 @@ function duplicateNotes(ids: string[]) {
 function mergeNotes(ids: string[]) {
   if (ids.length < 2) return;
   // keep display order
-  const ordered = allNotes().filter((e) => ids.includes(e.note.id));
+  const want = new Set(ids);
+  const ordered = allNotes().filter((e) => want.has(e.note.id));
   const first = ordered[0];
   if (!first) return;
   first.note.text = ordered.map((e) => e.note.text).join("\n\n");
@@ -471,6 +574,7 @@ function mergeNotes(ids: string[]) {
 function moveNotesBy(delta: -1 | 1) {
   const ids = targetIds();
   if (ids.length === 0) return;
+  const want = new Set(ids);
   const sections = state.sections.filter((s) => !isHidden(s));
   let moved = false;
 
@@ -479,8 +583,8 @@ function moveNotesBy(delta: -1 | 1) {
       const notes = sections[si].notes;
       for (let i = 0; i < notes.length; i++) {
         const n = notes[i];
-        if (!ids.includes(n.id)) continue;
-        if (i > 0 && !ids.includes(notes[i - 1].id)) {
+        if (!want.has(n.id)) continue;
+        if (i > 0 && !want.has(notes[i - 1].id)) {
           notes.splice(i, 1);
           notes.splice(i - 1, 0, n);
           moved = true;
@@ -497,8 +601,8 @@ function moveNotesBy(delta: -1 | 1) {
       const notes = sections[si].notes;
       for (let i = notes.length - 1; i >= 0; i--) {
         const n = notes[i];
-        if (!ids.includes(n.id)) continue;
-        if (i < notes.length - 1 && !ids.includes(notes[i + 1].id)) {
+        if (!want.has(n.id)) continue;
+        if (i < notes.length - 1 && !want.has(notes[i + 1].id)) {
           notes.splice(i, 1);
           notes.splice(i + 1, 0, n);
           moved = true;
@@ -520,11 +624,12 @@ function moveNotesBy(delta: -1 | 1) {
 function moveNotes(ids: string[], sectionId: string) {
   const dest = state.sections.find((s) => s.id === sectionId);
   if (!dest) return;
+  const want = new Set(ids);
   const moving: Note[] = [];
   for (const section of state.sections) {
     const stay: Note[] = [];
     for (const n of section.notes) {
-      if (ids.includes(n.id)) moving.push(n);
+      if (want.has(n.id)) moving.push(n);
       else stay.push(n);
     }
     section.notes = stay;
@@ -565,9 +670,11 @@ function archiveNotes(ids: string[]) {
     arch = { id: uid(), title: "Archive", collapsed: true, notes: [] };
     state.sections.push(arch);
   }
+  pushUndo(ids);
   moveNotes(ids, arch.id);
+  const want = new Set(ids);
   for (const id of ids) selected.delete(id);
-  if (focusedId && ids.includes(focusedId)) focusedId = null;
+  if (focusedId && want.has(focusedId)) focusedId = null;
   sounds.pop();
   toast("Archived");
 }
@@ -577,7 +684,8 @@ function noteAsPlainText(note: Note): string {
 }
 
 async function copyNotes(ids: string[], format: "plain" | "numbered" | "markdown") {
-  const ordered = allNotes().filter((e) => ids.includes(e.note.id));
+  const want = new Set(ids);
+  const ordered = allNotes().filter((e) => want.has(e.note.id));
   if (ordered.length === 0) return;
   let text: string;
   if (format === "numbered") {
@@ -672,14 +780,29 @@ function mdToHtml(text: string): string {
   html = html.replace(/(^|[\s(])_([^_\n]+)_/g, "$1<em>$2</em>");
   html = html.replace(
     /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener">$1</a>'
+    '<a href="$2" rel="noopener">$1</a>'
   );
   html = html.replace(
     /(^|[\s(])(https?:\/\/[^\s<)]+)/g,
-    '$1<a href="$2" target="_blank" rel="noopener">$2</a>'
+    '$1<a href="$2" rel="noopener">$2</a>'
   );
   html = html.replaceAll("\n", "<br>");
-  return html;
+  return highlightHtml(html, query);
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Wrap search matches in text nodes only, so markdown tags stay intact. */
+function highlightHtml(html: string, q: string): string {
+  const needle = q.trim();
+  if (!needle) return html;
+  const re = new RegExp(escapeRegExp(escapeHtml(needle)), "gi");
+  return html
+    .split(/(<[^>]+>)/)
+    .map((part) => (part.startsWith("<") ? part : part.replace(re, '<mark class="hl">$&</mark>')))
+    .join("");
 }
 
 // ---------------------------------------------------------------------------
@@ -747,12 +870,6 @@ function render() {
   app.textContent = "";
   const panel = h("div", "panel");
   if (pillMode) panel.classList.add("pill");
-  // a menu action can re-render while the window is still grown for the menu —
-  // keep the fresh panel pinned to its true size until the growth is restored
-  if (menuGrown && menuBase && !pillMode) {
-    panel.style.width = menuBase.w + "px";
-    panel.style.height = menuBase.h + "px";
-  }
 
   if (view === "settings") renderSettingsView(panel);
   else if (view === "info") renderInfoView(panel);
@@ -825,10 +942,7 @@ function renderMainView(panel: HTMLElement) {
 
   const menuBtn = h("button", "iconbtn electrobun-webkit-app-region-no-drag", "⋯");
   menuBtn.title = "Menu";
-  // TEMP diagnostics: buttons reported dead while another app holds focus
-  menuBtn.addEventListener("pointerdown", () => bridge.debug("menuBtn pointerdown"));
   menuBtn.addEventListener("click", (e) => {
-    bridge.debug(`menuBtn click (openMenu=${!!openMenu}, focus=${document.hasFocus()})`);
     e.stopPropagation();
     // second click toggles the menu closed instead of re-popping it
     if (openMenu) {
@@ -843,9 +957,7 @@ function renderMainView(panel: HTMLElement) {
   // minimize to pill — top right
   const minBtn = h("button", "iconbtn electrobun-webkit-app-region-no-drag", "–");
   minBtn.title = "Minimize to pill";
-  minBtn.addEventListener("pointerdown", () => bridge.debug("minBtn pointerdown"));
   minBtn.addEventListener("click", () => {
-    bridge.debug("minBtn click");
     minimizeToPill();
   });
   topbar.appendChild(minBtn);
@@ -901,7 +1013,7 @@ function captureCardRects(): Map<string, DOMRect> {
 
 /** Slide cards from their old position to the new one (drag, move, delete-shift). */
 function playCardMoves(prev: Map<string, DOMRect>) {
-  if (prev.size === 0) return;
+  if (prev.size === 0 || !allowMotion()) return;
   document.querySelectorAll<HTMLElement>(".card[data-id]").forEach((el) => {
     if (el.classList.contains("anim-in")) return; // brand new, has its own entrance
     const old = prev.get(el.dataset.id!);
@@ -1254,6 +1366,14 @@ function renderCard(note: Note, section: Section): HTMLElement {
   const body = h("div", "card-body");
   const textEl = h("div", "card-text");
   textEl.innerHTML = mdToHtml(note.text);
+  textEl.addEventListener("click", (e) => {
+    const a = (e.target as HTMLElement).closest("a");
+    if (!a) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const href = a.getAttribute("href");
+    if (href) bridge.openExternal(href);
+  });
   body.appendChild(textEl);
   if (note.screenshot) body.appendChild(renderShot(note));
   card.appendChild(body);
@@ -1343,11 +1463,12 @@ function renderCard(note: Note, section: Section): HTMLElement {
     if (dragIds.length === 0 || dragIds.includes(note.id)) return;
 
     // pull dragged notes out
+    const dragging = new Set(dragIds);
     const moving: Note[] = [];
     for (const s of state.sections) {
       const stay: Note[] = [];
       for (const n of s.notes) {
-        if (dragIds.includes(n.id)) moving.push(n);
+        if (dragging.has(n.id)) moving.push(n);
         else stay.push(n);
       }
       s.notes = stay;
@@ -1368,12 +1489,10 @@ function renderCard(note: Note, section: Section): HTMLElement {
 
 const PILL_W = 160;
 const PILL_H = 44;
-const FULL_W = 380;
-const FULL_H = 680;
 
 // size to restore when expanding from the pill (updated on minimize)
-let prePillW = FULL_W;
-let prePillH = FULL_H;
+let prePillW = DEFAULT_WINDOW.width;
+let prePillH = DEFAULT_WINDOW.height;
 
 function panelEl(): HTMLElement | null {
   return document.querySelector<HTMLElement>(".panel");
@@ -1458,43 +1577,57 @@ function attachResizeGrip(panel: HTMLElement) {
   grip.title = "Drag to resize";
 
   grip.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     grip.setPointerCapture(e.pointerId);
-    const startX = e.screenX;
-    const startY = e.screenY;
-    const startW = isDesktop ? window.innerWidth : app.clientWidth;
-    const startH = isDesktop ? window.innerHeight : app.clientHeight;
-    let raf = 0;
 
-    const move = (ev: PointerEvent) => {
-      const w = Math.max(280, Math.round(startW + (ev.screenX - startX)));
-      const hh = Math.max(360, Math.round(startH + (ev.screenY - startY)));
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        if (isDesktop) {
-          bridge.setWindowSize(w, hh);
-        } else {
-          app.style.width = w + "px";
-          app.style.height = hh + "px";
-        }
-      });
-    };
-    const up = () => {
-      grip.removeEventListener("pointermove", move);
-      grip.removeEventListener("pointerup", up);
-      if (isDesktop) {
-        // remember the chosen size across restarts
+    if (isDesktop) {
+      // main tracks the cursor in DIP and setBounds; renderer screenX is
+      // unreliable on a transparent layered HWND, and grab-anywhere would
+      // otherwise steal the gesture.
+      bridge.windowResizeStart();
+      const up = () => {
+        grip.removeEventListener("pointerup", up);
+        grip.removeEventListener("pointercancel", up);
+        grip.removeEventListener("lostpointercapture", up);
+        bridge.windowResizeEnd();
         settings.window = {
           width: Math.round(window.innerWidth),
           height: Math.round(window.innerHeight),
         };
         void saveSettingsNow();
-      }
+      };
+      grip.addEventListener("pointerup", up);
+      grip.addEventListener("pointercancel", up);
+      grip.addEventListener("lostpointercapture", up);
+      return;
+    }
+
+    const startX = e.screenX;
+    const startY = e.screenY;
+    const startW = app.clientWidth;
+    const startH = app.clientHeight;
+    let raf = 0;
+
+    const move = (ev: PointerEvent) => {
+      const w = Math.max(MIN_WINDOW.width, Math.round(startW + (ev.screenX - startX)));
+      const hh = Math.max(MIN_WINDOW.height, Math.round(startH + (ev.screenY - startY)));
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        app.style.width = w + "px";
+        app.style.height = hh + "px";
+      });
+    };
+    const up = () => {
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointerup", up);
+      grip.removeEventListener("pointercancel", up);
     };
     grip.addEventListener("pointermove", move);
     grip.addEventListener("pointerup", up);
+    grip.addEventListener("pointercancel", up);
   });
 
   panel.appendChild(grip);
@@ -1503,6 +1636,58 @@ function attachResizeGrip(panel: HTMLElement) {
 // ---------------------------------------------------------------------------
 // Settings view
 // ---------------------------------------------------------------------------
+
+let snapDisplays: DisplayInfo[] = [];
+
+async function refreshSnapDisplays() {
+  if (!isDesktop) {
+    snapDisplays = [];
+    return;
+  }
+  try {
+    snapDisplays = await bridge.listDisplays();
+  } catch (err) {
+    console.error("listDisplays failed", err);
+    snapDisplays = [];
+  }
+}
+
+function formatDisplayLabel(d: DisplayInfo, index: number): string {
+  const name = d.label || `Display ${index + 1}`;
+  const tags: string[] = [];
+  if (d.primary) tags.push("primary");
+  if (d.internal) tags.push("built-in");
+  return tags.length ? `${name} · ${tags.join(" · ")}` : name;
+}
+
+function snapDisplayValue(sel: OxideSettings["snapDisplay"]): string {
+  return typeof sel === "number" ? String(sel) : sel || "primary";
+}
+
+function parseSnapDisplayChoice(v: string): OxideSettings["snapDisplay"] {
+  if (v === "primary" || v === "current") return v;
+  const id = Number(v);
+  return Number.isInteger(id) ? id : "primary";
+}
+
+function snapDisplayOptions(): { value: string; label: string }[] {
+  const opts: { value: string; label: string }[] = [
+    { value: "primary", label: "Primary display" },
+    { value: "current", label: "Current display" },
+  ];
+  const seen = new Set<string>(["primary", "current"]);
+  for (let i = 0; i < snapDisplays.length; i++) {
+    const d = snapDisplays[i];
+    const value = String(d.id);
+    seen.add(value);
+    opts.push({ value, label: formatDisplayLabel(d, i) });
+  }
+  const sel = settings.snapDisplay;
+  if (typeof sel === "number" && !seen.has(String(sel))) {
+    opts.push({ value: String(sel), label: "Disconnected display" });
+  }
+  return opts;
+}
 
 function renderSettingsView(panel: HTMLElement) {
   const topbar = h("div", "topbar");
@@ -1528,12 +1713,8 @@ function renderSettingsView(panel: HTMLElement) {
         { value: "light", label: "Light" },
         { value: "dark", label: "Dark" },
       ],
-      settings.theme || "system",
-      (v) => {
-        settings.theme = v as OxideSettings["theme"];
-        applyTheme();
-        void saveSettingsNow();
-      }
+      settings.theme,
+      (v) => setTheme(v as OxideSettings["theme"])
     )
   );
   wrap.appendChild(
@@ -1541,6 +1722,17 @@ function renderSettingsView(panel: HTMLElement) {
       settings.sounds = v;
       void saveSettingsNow();
     })
+  );
+  wrap.appendChild(
+    toggleRow(
+      "Hide completed",
+      "Keep done notes out of the main list",
+      settings.hideCompleted === true,
+      (v) => {
+        settings.hideCompleted = v;
+        void saveSettingsNow();
+      }
+    )
   );
   wrap.appendChild(
     toggleRow(
@@ -1592,6 +1784,17 @@ function renderSettingsView(panel: HTMLElement) {
           settings.alwaysOnTop = v;
           pinned = v;
           bridge.setPin(v);
+          void saveSettingsNow();
+        }
+      )
+    );
+    wrap.appendChild(
+      toggleRow(
+        "Launch at login",
+        "Start Oxide when you sign in to this computer",
+        settings.launchAtLogin === true,
+        (v) => {
+          settings.launchAtLogin = v;
           void saveSettingsNow();
         }
       )
@@ -1709,6 +1912,18 @@ function renderSettingsView(panel: HTMLElement) {
         settings.snapPosition || "left",
         (v) => {
           settings.snapPosition = v as OxideSettings["snapPosition"];
+          void saveSettingsNow();
+        }
+      )
+    );
+    wrap.appendChild(
+      selectRow(
+        "Snap display",
+        "Which monitor the snap shortcut uses",
+        snapDisplayOptions(),
+        snapDisplayValue(settings.snapDisplay),
+        (v) => {
+          settings.snapDisplay = parseSnapDisplayChoice(v);
           void saveSettingsNow();
         }
       )
@@ -1879,6 +2094,16 @@ function renderSettingsView(panel: HTMLElement) {
     storageCard.appendChild(open);
   }
   wrap.appendChild(storageCard);
+  wrap.appendChild(
+    actionRow("Export notes", "Download a JSON backup of every section", "Export", () => {
+      void exportNotesFile();
+    })
+  );
+  wrap.appendChild(
+    actionRow("Import notes", "Replace everything with a JSON backup", "Import", () => {
+      void importNotesFile();
+    })
+  );
   wrap.appendChild(h("div", "set-note", "No accounts, sync, or telemetry."));
 
   wrap.appendChild(h("div", "set-group", "About"));
@@ -1974,11 +2199,72 @@ function renderInfoView(panel: HTMLElement) {
     h(
       "div",
       "set-note",
-      "Built with Bun + Electrobun. Inspired by Copper by shadcn. Everything stays on your machine."
+      "Built with Bun + Electron. Inspired by Copper by shadcn. Everything stays on your machine."
     )
   );
 
   panel.appendChild(wrap);
+}
+
+function actionRow(title: string, sub: string, label: string, onClick: () => void): HTMLElement {
+  const row = h("div", "set-row");
+  const lab = h("div", "set-label", title);
+  lab.appendChild(h("small", undefined, sub));
+  row.appendChild(lab);
+  const btn = h("button", "mini-btn", label);
+  btn.addEventListener("click", onClick);
+  row.appendChild(btn);
+  return row;
+}
+
+function exportPayload(): string {
+  return JSON.stringify(
+    { version: 1, exportedAt: Date.now(), state },
+    null,
+    2
+  );
+}
+
+async function exportNotesFile() {
+  try {
+    const ok = await bridge.exportNotes(exportPayload());
+    toast(ok ? "Notes exported" : "Export cancelled");
+  } catch (err) {
+    console.error("export failed", err);
+    toast("Couldn't export notes");
+  }
+}
+
+function parseImportedState(raw: string): AppState | null {
+  try {
+    const data = JSON.parse(raw) as unknown;
+    if (!data || typeof data !== "object") return null;
+    const obj = data as { state?: unknown; sections?: unknown };
+    return normalizeState(obj.state ?? obj);
+  } catch {
+    return null;
+  }
+}
+
+async function importNotesFile() {
+  try {
+    const raw = await bridge.importNotes();
+    if (!raw) return;
+    const next = parseImportedState(raw);
+    if (!next) {
+      toast("That file isn't an Oxide backup");
+      return;
+    }
+    if (!confirm("Replace all notes with this backup? This cannot be undone.")) return;
+    state = next;
+    undoStack.length = 0;
+    persist();
+    render();
+    toast("Notes imported");
+  } catch (err) {
+    console.error("import failed", err);
+    toast("Couldn't import notes");
+  }
 }
 
 function toggleRow(
@@ -2042,8 +2328,8 @@ function selectRow(
   row.appendChild(label);
 
   // not a native <select>: its popup is clipped at the frameless window edge
-  // and the overflowing part can't be clicked. The custom menu grows the
-  // window (menuGrow) so every option stays hittable.
+  // and the overflowing part can't be clicked. The custom menu stays inside
+  // the current window (and scrolls if it's taller).
   let cur = current;
   const field = h("button", "select-field");
   const setLabel = () => {
@@ -2187,41 +2473,15 @@ async function saveSettingsNow() {
 // ---------------------------------------------------------------------------
 
 let openMenu: HTMLElement | null = null;
-// the window was temporarily grown so the menu could overflow the panel;
-// menuBase remembers the pre-growth size, because window.innerWidth lies
-// while the window is still grown for a previous menu
-let menuGrown = false;
-let menuBase: { w: number; h: number } | null = null;
 // when the current menu was opened (guards against transient blur)
 let menuShownAt = 0;
-
-function restoreMenuGrowth() {
-  // a newer menu may have opened during the 140ms close animation — it still
-  // needs the grown window; its own close schedules the next restore
-  if (!menuGrown || openMenu) return;
-  menuGrown = false;
-  menuBase = null;
-  bridge.menuRestore();
-  // unpin the panel (pinned in showMenu so it wouldn't stretch with the
-  // larger window) — unless the pill morph owns the size now
-  const panel = panelEl();
-  if (panel && !pillMode) {
-    panel.style.width = "";
-    panel.style.height = "";
-  }
-}
 
 function closeMenu() {
   const menu = openMenu;
   if (!menu) return;
   openMenu = null;
-  // collapse animation, then remove; shrink the window back only after the
-  // menu is gone so the closing animation isn't clipped
   menu.classList.add("closing");
-  setTimeout(() => {
-    menu.remove();
-    restoreMenuGrowth();
-  }, 140);
+  setTimeout(() => menu.remove(), 140);
 }
 
 document.addEventListener("click", () => closeMenu());
@@ -2313,38 +2573,9 @@ function showMenu(x: number, y: number, items: MenuItem[]) {
   }
   document.body.appendChild(menu);
   const rect = menu.getBoundingClientRect();
-
-  if (isDesktop) {
-    // don't clamp — let the menu spill past the panel and grow the (transparent)
-    // native window just enough to show it. The panel is pinned to its current
-    // size so it doesn't stretch along; closeMenu restores the exact frame.
-    const left = Math.max(8, x);
-    const top = Math.max(8, y);
-    menu.style.left = left + "px";
-    menu.style.top = top + "px";
-    // measure against the pre-growth size — innerWidth lies while the window
-    // is still grown for a previous menu (restore runs 140ms after close)
-    const baseW = menuBase?.w ?? window.innerWidth;
-    const baseH = menuBase?.h ?? window.innerHeight;
-    const needW = Math.ceil(left + rect.width + 12);
-    const needH = Math.ceil(top + rect.height + 12);
-    if (needW > baseW || needH > baseH || menuGrown) {
-      if (!menuGrown) {
-        menuBase = { w: baseW, h: baseH };
-        const panel = panelEl();
-        if (panel) {
-          panel.style.width = panel.offsetWidth + "px";
-          panel.style.height = panel.offsetHeight + "px";
-        }
-        menuGrown = true;
-      }
-      bridge.menuGrow(Math.max(needW, baseW), Math.max(needH, baseH));
-    }
-  } else {
-    // web: keep fully inside the viewport
-    menu.style.left = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8)) + "px";
-    menu.style.top = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8)) + "px";
-  }
+  // stay inside the current window — never grow the native frame for a menu
+  menu.style.left = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8)) + "px";
+  menu.style.top = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8)) + "px";
   openMenu = menu;
   menuShownAt = Date.now();
 }
@@ -2492,10 +2723,17 @@ function showAppMenu(x: number, y: number) {
       },
     },
     {
+      label: "Undo",
+      kbd: "Ctrl+Z",
+      disabled: undoStack.length === 0,
+      action: () => undoLast(),
+    },
+    {
       label: "Hide completed",
-      checked: hideCompleted,
+      checked: settings.hideCompleted === true,
       action: () => {
-        hideCompleted = !hideCompleted;
+        settings.hideCompleted = !settings.hideCompleted;
+        void saveSettingsNow();
         renderListOnly();
       },
     },
@@ -2511,7 +2749,28 @@ function showAppMenu(x: number, y: number) {
     },
     { sep: true },
     {
+      label: "Appearance",
+      children: [
+        {
+          label: "Auto",
+          checked: settings.theme === "system",
+          action: () => setTheme("system"),
+        },
+        {
+          label: "Light",
+          checked: settings.theme === "light",
+          action: () => setTheme("light"),
+        },
+        {
+          label: "Dark",
+          checked: settings.theme === "dark",
+          action: () => setTheme("dark"),
+        },
+      ],
+    },
+    {
       label: "Settings…",
+      kbd: "Ctrl+,",
       action: () => {
         navigateTo("settings");
       },
@@ -2599,6 +2858,24 @@ function moveFocus(delta: number, extendSelection: boolean) {
 
 document.addEventListener("keydown", (e) => {
   if (pillMode) return;
+
+  const target = e.target as HTMLElement;
+  const inField =
+    target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+
+  if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+    e.preventDefault();
+    navigateTo("settings");
+    return;
+  }
+
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+    if (inField) return;
+    e.preventDefault();
+    undoLast();
+    return;
+  }
+
   if (view !== "list") {
     if (e.key === "Escape") {
       // About sits one level under Settings — Esc walks back up
@@ -2606,10 +2883,6 @@ document.addEventListener("keydown", (e) => {
     }
     return;
   }
-
-  const target = e.target as HTMLElement;
-  const inField =
-    target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
 
   // global-ish shortcuts that work anywhere in the panel
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
@@ -2701,59 +2974,62 @@ document.addEventListener("keydown", (e) => {
 // Theme
 // ---------------------------------------------------------------------------
 
+const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+function allowMotion() {
+  return !motionQuery.matches;
+}
+
 const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
+function setTheme(pref: OxideSettings["theme"]) {
+  settings.theme = pref;
+  applyTheme();
+  void saveSettingsNow();
+}
+
 function applyTheme() {
-  const pref = settings.theme || "system";
-  const dark = pref === "dark" || (pref === "system" && darkQuery.matches);
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const dark = settings.theme === "dark" || (settings.theme === "system" && darkQuery.matches);
+  const resolved = dark ? "dark" : "light";
+  const root = document.documentElement;
+  root.dataset.theme = resolved;
+  root.style.colorScheme = resolved;
 }
 
 darkQuery.addEventListener("change", () => {
-  if ((settings.theme || "system") === "system") applyTheme();
+  if (settings.theme === "system") applyTheme();
 });
+applyTheme();
 
 // ---------------------------------------------------------------------------
 // Grab-anywhere window dragging (desktop)
 // ---------------------------------------------------------------------------
-// Electrobun starts a native window move on mousedown over an element with the
-// drag class. We tag bare surfaces (panel padding, gaps between cards, empty
-// list space) with that class just-in-time, so anything that isn't interactive
-// becomes a drag handle — while cards, headers, inputs and scrollbars keep
-// working normally.
+// The main process moves the window (it tracks the cursor and glides with
+// momentum on release); here we only decide whether a mousedown starts a
+// drag. Bare surfaces (panel padding, gaps between cards, empty list space)
+// are grab handles — while cards, headers, inputs and scrollbars keep
+// working normally. The drag-handle classes below stay as inert JS markers:
+// .electrobun-webkit-app-region-drag marks chrome that is always draggable
+// (topbar, pill face), -no-drag marks interactive widgets inside it.
 
-// (.pill-face is NOT here — it carries the drag class statically, and the
-// just-in-time add/remove below would strip it)
+// (.pill-face is NOT here — it carries the drag class statically)
 const GRAB_SURFACES =
   ".panel, .list, .section, .cards, .cards-wrap, .composer, .settings, .empty-hint";
 
 function initGrabAnywhere() {
   if (!isDesktop) return;
+  let dragging = false;
   const DRAG_CLASS = "electrobun-webkit-app-region-drag";
-  let grabbed: HTMLElement | null = null;
-
-  const release = () => {
-    if (!grabbed) return;
-    const el = grabbed;
-    grabbed = null;
-    // Electrobun's own mouseup handler needs to still see the class to end
-    // the move — strip it a tick later
-    setTimeout(() => el.classList.remove(DRAG_CLASS), 0);
-  };
 
   window.addEventListener(
     "mousedown",
     (e) => {
-      release(); // safety: never leave a stale drag class behind
-      if (e.button !== 0) return;
+      if (dragging || e.button !== 0) return;
       const t = e.target as HTMLElement;
-      let dragging = false;
+      if (t?.closest?.(".resize-grip")) return;
       if (t?.matches?.(GRAB_SURFACES)) {
         // clicks on a scrollbar land on the element itself but outside its
         // client box — those must scroll, not move the window
         if (e.offsetX > t.clientWidth || e.offsetY > t.clientHeight) return;
-        t.classList.add(DRAG_CLASS);
-        grabbed = t;
         dragging = true;
       } else if (
         t?.closest?.("." + DRAG_CLASS) &&
@@ -2762,14 +3038,16 @@ function initGrabAnywhere() {
         // statically draggable surface (topbar, pill face)
         dragging = true;
       }
-      // bun samples the window position during the drag and glides on release
+      // the main process samples the window position and glides on release
       if (dragging) bridge.windowDragStart();
     },
-    true // capture: runs before Electrobun's own mousedown listener
+    true // capture: runs before any widget handlers
   );
   window.addEventListener("mouseup", () => {
-    release();
-    bridge.windowDragEnd(); // bun ignores this when no drag was running
+    if (dragging) {
+      dragging = false;
+      bridge.windowDragEnd(); // main ignores this when no drag was running
+    }
   });
 }
 
@@ -2780,7 +3058,7 @@ function initGrabAnywhere() {
 async function boot() {
   if (isDesktop) {
     try {
-      await initDesktopBridge();
+      initDesktopBridge();
     } catch (err) {
       console.error("desktop bridge failed, falling back to localStorage", err);
     }
@@ -2791,14 +3069,7 @@ async function boot() {
   // settings
   try {
     const rawSettings = await bridge.loadSettings();
-    if (rawSettings) {
-      const parsed = JSON.parse(rawSettings);
-      settings = {
-        ...DEFAULT_SETTINGS,
-        ...parsed,
-        shortcuts: { ...DEFAULT_SETTINGS.shortcuts, ...(parsed.shortcuts ?? {}) },
-      };
-    }
+    if (rawSettings) settings = mergeSettings(JSON.parse(rawSettings));
   } catch (err) {
     console.error("failed to load settings", err);
   }
@@ -2806,23 +3077,7 @@ async function boot() {
   pinned = settings.alwaysOnTop !== false;
   applyTheme();
   initGrabAnywhere();
-
-  // TEMP diagnostics: top-right buttons reported dead while another app's
-  // text field holds focus — trace whether clicks reach the webview at all
-  if (isDesktop) {
-    window.addEventListener("focus", () => bridge.debug("window focus"));
-    window.addEventListener("blur", () => bridge.debug("window blur"));
-    window.addEventListener(
-      "mousedown",
-      (e) => {
-        const t = e.target as HTMLElement;
-        bridge.debug(
-          `mousedown <${t.tagName?.toLowerCase()}> ${String(t.className).slice(0, 48)}`
-        );
-      },
-      true
-    );
-  }
+  void refreshSnapDisplays();
 
   let loaded: AppState | null = null;
   try {

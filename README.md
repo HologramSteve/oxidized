@@ -17,6 +17,8 @@ Everything stays local. There are no accounts, sync services, or telemetry.
 - **Markdown-lite notes** - Use bold, italics, inline code, and links inside note cards.
 - **Source screenshots** - On Windows, optionally capture a screenshot of the source window alongside a captured note.
 - **Personal settings** - Choose a light, dark, or system theme; configure sounds, shortcuts, capture behavior, and completion preferences.
+- **Backup** - Export and import notes as JSON. Window position, hide-completed, and launch-at-login persist on the desktop app.
+- **Tray** - The desktop app stays in the system tray so the panel can hide without quitting.
 
 ## Run it
 
@@ -32,13 +34,14 @@ bun run web
 
 Then open `http://localhost:4820`. Browser mode stores notes and settings in `localStorage`.
 
-Run the desktop version:
+Run the desktop version (Electron — bundles the main process + preload, starts
+the web dev server for the view, then launches the app):
 
 ```sh
 bun run dev
 ```
 
-Build the desktop app:
+Build installers with electron-builder (into `artifacts/`):
 
 ```sh
 bun run build
@@ -99,6 +102,8 @@ Panel shortcuts:
 | `Ctrl+M` | Merge selected notes |
 | `Ctrl+E` | Archive selected notes |
 | `Delete` | Move selected notes to Trash |
+| `Ctrl+Z` | Undo last delete or archive |
+| `Ctrl+,` | Open Settings |
 | `/` or `Ctrl+F` | Focus search |
 | Type with nothing selected | Focus the composer |
 
@@ -106,11 +111,11 @@ Right-click notes and sections for additional actions. Double-click a note to ed
 
 ## Tech stack
 
-- **Bun** for the runtime, package scripts, filesystem access, and build tooling.
+- **Bun** for package scripts, filesystem access, and build tooling (bundling main, preload, and view).
 - **TypeScript** with strict type checking.
-- **Electrobun** for the native desktop window, webview, RPC bridge, global shortcuts, and Windows packaging.
+- **Electron** for the native desktop window, preload IPC bridge, global shortcuts, and packaging (electron-builder).
 - **Vanilla TypeScript and CSS** for the interface. There is no frontend framework.
-- **Windows APIs and PowerShell helpers** for keyboard capture, DPI-aware window behavior, screenshots, and native window movement.
+- **Windows APIs and PowerShell helpers** for screenshot capture and the double-tap keyboard hook.
 - **Local storage** through JSON files on desktop and browser `localStorage` in web mode.
 
 ## Project structure
@@ -118,24 +123,28 @@ Right-click notes and sections for additional actions. Double-click a note to ed
 ```text
 oxidized/
 |-- assets/
-|   `-- icon.ico               Application icon
+|   |-- icon.ico               Windows application icon
+|   `-- icon.png               Cross-platform icon source (dev + electron-builder)
 |-- scripts/
-|   `-- embed-icon.ts          Embeds the Windows icon during packaging
-|-- electrobun.config.ts       Desktop and packaging configuration
+|   |-- build-app.ts           Bundles main/preload (dist-electron/) and view (dist-renderer/)
+|   `-- dev.ts                 Dev orchestrator: serve.ts + Electron
+|-- electron-builder.yml       electron-builder targets (NSIS/zip, dmg/zip, AppImage/deb)
 |-- package.json               Scripts and dependencies
 |-- serve.ts                   Browser-mode development server
 `-- src/
-    |-- bun/
-    |   |-- index.ts           Main process, window, storage, capture, and shortcuts
-    |   `-- shiftshift.ts      Low-level double-tap capture helper
+    |-- main/
+    |   |-- index.ts           Electron main process: window, storage, capture, shortcuts
+    |   |-- preload.ts         contextBridge → window.oxide
+    |   `-- shiftshift.ts      Windows double-tap capture helper
     |-- mainview/
-    |   |-- index.html         Webview shell
+    |   |-- index.html         Window shell
     |   |-- index.ts           Application state and UI behavior
     |   |-- style.css          Panel, cards, settings, and animations
     |   |-- sounds.ts          UI sounds
     |   `-- logo.ts            Embedded About-page logos
     `-- shared/
-        `-- types.ts           Shared state types and RPC schema
+        |-- types.ts           Shared state types and defaults
+        `-- ipc.ts             Desktop IPC contract (channels + OxideDesktopApi)
 ```
 
 ## Local data

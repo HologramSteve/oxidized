@@ -1,0 +1,39 @@
+# electron-builder config — installers for Windows / macOS / Linux.
+# Bundles come from dist-electron/ (main + preload) and dist-renderer/ (view);
+# both are produced by `bun run build:app` first.
+
+appId: nl.stevenrs.oxide
+productName: Oxide
+directories:
+  output: artifacts
+  buildResources: assets
+files:
+  - dist-electron/**
+  - dist-renderer/**
+  - assets/icon.ico
+  - assets/icon.png
+asar: true
+
+win:
+  icon: icon.ico
+  target:
+    - nsis
+    - zip
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+mac:
+  icon: icon.png
+  category: public.app-category.productivity
+  target:
+    - dmg
+    - zip
+
+linux:
+  icon: icon.png
+  category: Utility
+  target:
+    - AppImage
+    - deb

@@ -1,4 +1,4 @@
-// Website mode: serves the same UI that runs inside the Electrobun webview.
+// Website mode: serves the same UI that runs inside the Electron window.
 // Usage: bun serve.ts  →  http://localhost:4820
 
 const PORT = 4820;

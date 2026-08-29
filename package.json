@@ -3,21 +3,20 @@
   "version": "1.0.2",
   "private": true,
   "description": "Oxide is a floating, keyboard-first scratchpad for scattered AI work (Copper-style clone)",
-  "dependencies": {
-    "electrobun": "latest"
-  },
+  "main": "dist-electron/main.js",
   "devDependencies": {
     "@types/bun": "latest",
-    "rcedit": "^5.0.2"
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
   "scripts": {
-    "dev": "electrobun dev",
-    "start": "electrobun dev",
-    "build": "electrobun build",
-    "embed-icon": "bun scripts/embed-icon.ts",
+    "dev": "bun scripts/dev.ts",
+    "start": "electron .",
+    "build:app": "bun scripts/build-app.ts",
+    "build": "bun run build:app && electron-builder",
     "web": "bun serve.ts"
   }
 }
