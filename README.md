@@ -6,6 +6,10 @@ Everything stays local. There are no accounts, sync services, or telemetry.
 
 ## Changelog
 
+### 1.1.1
+
+- **No source-window screenshots** — Capturing a note no longer takes a screenshot of the window the text came from. The setting, preview chip, and `blobs/shots/` folder are gone. Leftover shot files are deleted the next time the desktop app starts.
+
 ### 1.1.0
 
 - **Electron desktop app** — Oxide now runs on Electron instead of Electrobun, with installers from electron-builder (Windows NSIS/zip, macOS dmg/zip, Linux AppImage/deb). Notes and settings files stay compatible.
