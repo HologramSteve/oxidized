@@ -1,6 +1,6 @@
 {
   "name": "oxide",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "description": "Oxide is a floating, keyboard-first scratchpad for scattered AI work (Copper-style clone)",
   "main": "dist-electron/main.js",
