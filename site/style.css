@@ -79,35 +79,53 @@ body {
   margin-top: 36px;
 }
 
-.btn {
+a.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   height: 44px;
   padding: 0 22px;
   border-radius: 980px;
   font-size: 15px;
   font-weight: 510;
   letter-spacing: -0.015em;
-  text-decoration: none;
+  line-height: 44px;
+  cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
-.btn-primary {
+a.btn:link,
+a.btn:visited,
+a.btn:hover,
+a.btn:active {
+  text-decoration: none;
+}
+
+a.btn-primary,
+a.btn-primary:link,
+a.btn-primary:visited {
   background: #f5f5f7;
   color: #050505;
 }
 
-.btn-primary:hover {
+a.btn-primary:hover,
+a.btn-primary:active {
   background: #ffffff;
+  color: #050505;
 }
 
-.btn-ghost {
+a.btn-ghost,
+a.btn-ghost:link,
+a.btn-ghost:visited {
   color: var(--text);
+  background: transparent;
   border: 1px solid var(--line);
 }
 
-.btn-ghost:hover {
+a.btn-ghost:hover,
+a.btn-ghost:active {
+  color: var(--text);
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.18);
 }
