@@ -580,6 +580,8 @@ Supported controls include:
 
 Settings should feel like the same product as the main workspace. Do not introduce a separate form design system.
 
+When there are more rows than fit comfortably on one screen, split them into a few short pages instead of one long scroll. Switch pages with a full-width segmented control (10.10) pinned under the top bar, with equal-width segments. Rows that only matter while another option is on are hidden until it is.
+
 ### 10.9 Compact switch
 
 Use a pill track with a white circular knob:
@@ -1105,6 +1107,7 @@ This appendix maps the portable language back to the reference implementation. I
 - Generic group: `.section` and `.section-header`.
 - Generic leading state control: `.check`.
 - Generic settings row: `.set-row`.
+- Settings page tabs: `.settings-tabs` wrapping a `.seg`.
 - Generic floating menu: `.ctxmenu`.
 - Generic temporary confirmation: `.toast`.
 
@@ -1134,10 +1137,10 @@ This appendix maps the portable language back to the reference implementation. I
 | Concern | Source |
 | --- | --- |
 | Global visual tokens and component styles | `src/mainview/style.css` |
-| Screen and interaction rendering | `src/mainview/index.ts` |
+| Screen and interaction rendering | `src/mainview/shell.ts`, `src/mainview/views/` |
 | Synthesized feedback sounds | `src/mainview/sounds.ts` |
 | Theme-specific identity assets | `src/mainview/logo.ts` |
 | Shared state and settings shape | `src/shared/types.ts` |
-| Native window and platform behavior | `src/bun/index.ts` |
+| Native window and platform behavior | `src/main/panel.ts`, `src/main/motion.ts` |
 
 The appendix is descriptive, not prescriptive. A new application should use the generic names and semantic rules in the main document, then adapt the components to its own content model.

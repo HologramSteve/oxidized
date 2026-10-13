@@ -6,6 +6,15 @@ Everything stays local. There are no accounts, sync services, or telemetry.
 
 ## Changelog
 
+### 1.2.0
+
+- **Tabbed Settings** — Settings is split into General, Shortcuts, Data, and About instead of one long page. The separate About screen is gone.
+- **Shorter ⋯ menu** — Appearance and Always on top now live only in Settings. New **Archive & Trash…** entry jumps straight to archived and deleted notes; "Collapse all" turns into "Expand all" when everything is collapsed.
+- **Clear a shortcut** — While recording a global shortcut, press Backspace to unset it.
+- **Safer storage** — Notes are written atomically, the last launch is kept as `blobs/notes.json.bak`, and an unreadable notes file is preserved instead of being overwritten. Edits made right before hiding or quitting are no longer lost.
+- **Fixes** — One invalid shortcut no longer disables all global shortcuts; "Clear completed" leaves the Archive alone; closing the panel hides it to the tray; only one copy of the installed app runs at a time; the window opens at exactly 380×680 on scaled displays.
+- **Under the hood** — The app was restructured into small modules with unit tests. Notes and settings files stay compatible.
+
 ### 1.1.1
 
 - **No source-window screenshots** — Capturing a note no longer takes a screenshot of the window the text came from. The setting, preview chip, and `blobs/shots/` folder are gone. Leftover shot files are deleted the next time the desktop app starts.
@@ -93,7 +102,7 @@ To publish a version:
 5. Select `main` and enter a version such as `0.2.0`.
 6. Click **Run workflow** and wait for the build and publish jobs to finish.
 
-The version must be a new `X.Y.Z` semantic version. The workflow also updates the version shown in the About screen. No local tag or release command is needed.
+The version must be a new `X.Y.Z` semantic version. The workflow also updates the version shown in Settings → About. No local tag or release command is needed.
 
 ## Marketing site
 
@@ -166,19 +175,35 @@ oxidized/
 |-- package.json               Scripts and dependencies
 |-- serve.ts                   Browser-mode development server
 `-- src/
-    |-- main/
-    |   |-- index.ts           Electron main process: window, storage, capture, shortcuts
-    |   |-- preload.ts         contextBridge → window.oxide
-    |   `-- shiftshift.ts      Windows double-tap capture helper
-    |-- mainview/
+    |-- main/                  Electron main process
+    |   |-- index.ts           Wiring: capture, tray, app lifecycle
+    |   |-- panel.ts           The window: show/hide, pill frame, snap
+    |   |-- motion.ts          Window drag, momentum glide, resize
+    |   |-- storage.ts         Data paths, atomic writes, notes + settings files
+    |   |-- shortcuts.ts       Global shortcuts
+    |   |-- shiftshift.ts      Windows double-tap capture helper
+    |   |-- ipc.ts             IPC handlers
+    |   `-- preload.ts         contextBridge → window.oxide
+    |-- mainview/              The interface (desktop window and website)
     |   |-- index.html         Window shell
-    |   |-- index.ts           Application state and UI behavior
+    |   |-- index.ts           Entry point and app version
+    |   |-- app.ts             Startup
+    |   |-- platform.ts        Desktop vs. browser storage and window calls
+    |   |-- store.ts, ui.ts    Saved state and settings / transient UI state
+    |   |-- notes.ts           Pure operations on notes and sections
+    |   |-- actions.ts         User commands
+    |   |-- shell.ts           Panel and view switching
+    |   |-- views/             Note list, Settings tabs, shared row widgets
+    |   |-- menus.ts, keyboard.ts, selection.ts, pill.ts, ...
     |   |-- style.css          Panel, cards, settings, and animations
     |   |-- sounds.ts          UI sounds
-    |   `-- logo.ts            Embedded About-page logos
+    |   `-- logo.ts            Embedded About logos
     `-- shared/
         |-- types.ts           Shared state types and defaults
+        |-- settings.ts        Settings validation
+        |-- state.ts           Notes-file validation, Archive/Trash helpers
         `-- ipc.ts             Desktop IPC contract (channels + OxideDesktopApi)
+tests/                         Unit tests (bun test)
 ```
 
 ## Local data
@@ -189,8 +214,11 @@ Desktop data is stored under:
 %LOCALAPPDATA%\oxidized\
 |-- settings.json
 `-- blobs/
-    `-- notes.json
+    |-- notes.json
+    `-- notes.json.bak         The notes as they were at the last launch
 ```
+
+If `notes.json` ever cannot be read, Oxide restores from the backup and keeps the unreadable file next to it as `notes.corrupt-<time>.json` instead of overwriting it.
 
 Oxide does not upload or synchronize this data.
 
