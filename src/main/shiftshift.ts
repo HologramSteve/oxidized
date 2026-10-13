@@ -1,17 +1,18 @@
-// Double-Shift global capture for Windows.
+// Double-tap global capture for Windows.
 //
 // Copper uses macOS Accessibility APIs to read the current selection when you
 // double-tap Shift. The Windows equivalent: a low-level keyboard hook
-// (WH_KEYBOARD_LL) that watches for two clean Shift taps, then simulates
-// Ctrl+C and checks GetClipboardSequenceNumber() to see whether a selection
-// was actually copied. Electrobun's GlobalShortcut API can't express a tap
-// sequence, so we run this as a tiny hidden PowerShell/C# helper process and
-// talk to it over stdout.
+// (WH_KEYBOARD_LL) that watches for two clean taps of the capture key, then
+// simulates Ctrl+C and checks GetClipboardSequenceNumber() to see whether a
+// selection was actually copied. Electron's globalShortcut can't express a
+// tap sequence, so we run this as a tiny hidden PowerShell/C# helper process
+// and talk to it over stdout.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { TAP_WINDOW_MS, type DoubleTapKey } from "../shared/types";
 
 // PowerShell single-quoted here-string: no interpolation, safe to embed C#.
 export const HELPER_SCRIPT = `
@@ -138,69 +139,111 @@ Add-Type -TypeDefinition $src -Language CSharp
 `;
 
 // left/right VK code pairs per selectable tap key
-export const TAP_KEY_VKS: Record<string, [number, number]> = {
+export const TAP_KEY_VKS: Record<DoubleTapKey, [number, number]> = {
   shift: [0xa0, 0xa1],
   ctrl: [0xa2, 0xa3],
   alt: [0xa4, 0xa5],
 };
 
+export interface ShiftShiftOptions {
+  tapMs: number;
+  tapKey: DoubleTapKey;
+  onCapture(): void;
+  onStatus?(line: string): void;
+  /** The helper process ended. `expected` is true when stop() caused it. */
+  onExit?(expected: boolean): void;
+}
+
 export interface ShiftShiftHandle {
   stop(): void;
 }
 
-export function startShiftShiftHelper(
-  onCapture: () => void,
-  onStatus?: (line: string) => void,
-  tapMs = 400,
-  tapKey = "shift"
-): ShiftShiftHandle | null {
+/** Start the keyboard-hook helper. Returns null off Windows or when it can't spawn. */
+export function startShiftShiftHelper(options: ShiftShiftOptions): ShiftShiftHandle | null {
   if (process.platform !== "win32") return null;
-  const [vkA, vkB] = TAP_KEY_VKS[tapKey] ?? TAP_KEY_VKS.shift;
+  const [vkA, vkB] = TAP_KEY_VKS[options.tapKey] ?? TAP_KEY_VKS.shift;
+  const tapMs = Math.max(
+    TAP_WINDOW_MS.min,
+    Math.min(TAP_WINDOW_MS.max, Math.round(options.tapMs) || 400)
+  );
 
   const scriptPath = join(tmpdir(), "oxide-shiftshift.ps1");
-  let child: ChildProcess | null = null;
-
+  let child: ChildProcess;
   try {
     // write the helper script fresh each launch
     writeFileSync(scriptPath, HELPER_SCRIPT, "utf8");
-
     child = spawn(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", scriptPath, "-TapMs", String(Math.max(150, Math.min(10_000, Math.round(tapMs) || 400))), "-VkA", String(vkA), "-VkB", String(vkB)],
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-WindowStyle",
+        "Hidden",
+        "-File",
+        scriptPath,
+        "-TapMs",
+        String(tapMs),
+        "-VkA",
+        String(vkA),
+        "-VkB",
+        String(vkB),
+      ],
       { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }
     );
-
-    let buf = "";
-    child.stdout!.setEncoding("utf8");
-    child.stdout!.on("data", (chunk: string) => {
-      buf += chunk;
-      let idx: number;
-      while ((idx = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, idx).trim();
-        buf = buf.slice(idx + 1);
-        if (line === "CAPTURE") onCapture();
-        else if (line) onStatus?.(line);
-      }
-    });
-
-    child.stderr!.setEncoding("utf8");
-    child.stderr!.on("data", (chunk: string) => {
-      console.error("[oxide:shiftshift]", chunk.trim());
-    });
-
-    child.on("exit", (code) => {
-      console.warn("[oxide:shiftshift] helper exited with code", code);
-    });
   } catch (err) {
     console.error("[oxide:shiftshift] failed to start helper:", err);
     return null;
   }
 
+  let stopped = false;
+  let exited = false;
   const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    process.off("exit", stop);
     try {
-      child?.kill();
+      child.kill();
     } catch {}
   };
+  const finish = () => {
+    if (exited) return;
+    exited = true;
+    process.off("exit", stop);
+    options.onExit?.(stopped);
+  };
+  // don't leave the hook running if the app dies without a clean quit
   process.on("exit", stop);
+
+  let buf = "";
+  child.stdout?.setEncoding("utf8");
+  child.stdout?.on("data", (chunk: string) => {
+    buf += chunk;
+    let idx: number;
+    while ((idx = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (stopped) continue;
+      if (line === "CAPTURE") options.onCapture();
+      else if (line) options.onStatus?.(line);
+    }
+  });
+
+  child.stderr?.setEncoding("utf8");
+  child.stderr?.on("data", (chunk: string) => {
+    console.error("[oxide:shiftshift]", chunk.trim());
+  });
+
+  // a failed spawn (e.g. powershell.exe missing) surfaces as an error event
+  child.on("error", (err) => {
+    console.error("[oxide:shiftshift] helper error:", err);
+    finish();
+  });
+  child.on("exit", (code) => {
+    if (!stopped) console.warn("[oxide:shiftshift] helper exited with code", code);
+    finish();
+  });
+
   return { stop };
 }

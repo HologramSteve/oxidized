@@ -24,6 +24,7 @@
     "build:app": "bun scripts/build-app.ts",
     "build": "bun run build:app && electron-builder --publish never",
     "web": "bun serve.ts",
-    "site": "bun site/serve.ts"
+    "site": "bun site/serve.ts",
+    "test": "bun test"
   }
 }

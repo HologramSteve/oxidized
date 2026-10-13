@@ -1,6 +1,7 @@
 // Shared between the Electron main process and the renderer.
 // Pure data + types only (no imports), so this file is safe in both contexts.
-// The desktop IPC contract lives in ./ipc.ts.
+// Validation lives next door: ./settings.ts (settings) and ./state.ts (notes);
+// the desktop IPC contract lives in ./ipc.ts.
 
 export interface Note {
   id: string;
@@ -27,6 +28,8 @@ export interface AppState {
   activeSectionId: string;
 }
 
+export type ThemePreference = "system" | "light" | "dark";
+
 export type DoubleTapKey = "shift" | "ctrl" | "alt";
 
 // preset home spot for the snap-to-position shortcut
@@ -40,6 +43,14 @@ export type SnapPosition =
 
 /** Which display the snap shortcut targets. A number is Electron's Display.id. */
 export type SnapDisplay = "primary" | "current" | number;
+
+/** Panel frame in logical px. x/y are absent until the window has been placed. */
+export interface WindowFrame {
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+}
 
 export interface OxideSettings {
   shortcuts: {
@@ -61,14 +72,15 @@ export interface OxideSettings {
   // skip a capture when identical text was already captured in the last 30s
   dedupeCaptures: boolean;
   alwaysOnTop: boolean;
-  theme: "system" | "light" | "dark";
+  theme: ThemePreference;
   // mark notes as done after copying them as a list
   autoCompleteOnCopy: boolean;
   // pop the window back out of the pill when a capture lands
   expandOnCapture: boolean;
-  // last panel position (logical px), restored on launch. Width/height in this
-  // blob are ignored at startup — the window always opens at DEFAULT_WINDOW.
-  window?: { width: number; height: number; x?: number; y?: number };
+  // last panel position (logical px), restored on launch. Owned by the main
+  // process — the renderer never writes it. Width/height in this blob are
+  // ignored at startup: the window always opens at DEFAULT_WINDOW.
+  window?: WindowFrame;
   // hide completed notes in the main list
   hideCompleted: boolean;
   // start Oxide when the user signs in (desktop, packaged builds)
@@ -79,6 +91,9 @@ export interface OxideSettings {
 export const DEFAULT_WINDOW = { width: 380, height: 680 };
 /** Floor used by the resize grip and by fitting DEFAULT_WINDOW to a small display. */
 export const MIN_WINDOW = { width: 280, height: 360 };
+
+/** Allowed range for shortcuts.doubleShiftWindowMs. */
+export const TAP_WINDOW_MS = { min: 150, max: 10_000 };
 
 export const DEFAULT_SETTINGS: OxideSettings = {
   shortcuts: {
@@ -101,68 +116,3 @@ export const DEFAULT_SETTINGS: OxideSettings = {
   launchAtLogin: false,
   window: { ...DEFAULT_WINDOW },
 };
-
-const THEMES: ReadonlySet<OxideSettings["theme"]> = new Set(["system", "light", "dark"]);
-const SNAP_POSITIONS: ReadonlySet<SnapPosition> = new Set([
-  "left",
-  "right",
-  "top-left",
-  "top-right",
-  "bottom-left",
-  "bottom-right",
-]);
-const DOUBLE_TAP_KEYS: ReadonlySet<DoubleTapKey> = new Set(["shift", "ctrl", "alt"]);
-
-function parseSnapDisplay(raw: unknown): SnapDisplay {
-  if (raw === "primary" || raw === "current") return raw;
-  if (typeof raw === "number" && Number.isInteger(raw)) return raw;
-  return DEFAULT_SETTINGS.snapDisplay;
-}
-
-/** Merge a settings JSON blob over defaults. Used by both main and the view. */
-export function mergeSettings(raw: unknown): OxideSettings {
-  const parsed = raw && typeof raw === "object" ? (raw as Partial<OxideSettings>) : {};
-  const shortcutsIn: Partial<OxideSettings["shortcuts"]> =
-    parsed.shortcuts && typeof parsed.shortcuts === "object" ? parsed.shortcuts : {};
-  const theme = THEMES.has(parsed.theme as OxideSettings["theme"])
-    ? (parsed.theme as OxideSettings["theme"])
-    : DEFAULT_SETTINGS.theme;
-  const snapPosition = SNAP_POSITIONS.has(parsed.snapPosition as SnapPosition)
-    ? (parsed.snapPosition as SnapPosition)
-    : DEFAULT_SETTINGS.snapPosition;
-  const snapDisplay = parseSnapDisplay(parsed.snapDisplay);
-  const doubleTapKey = DOUBLE_TAP_KEYS.has(shortcutsIn.doubleTapKey as DoubleTapKey)
-    ? (shortcutsIn.doubleTapKey as DoubleTapKey)
-    : DEFAULT_SETTINGS.shortcuts.doubleTapKey;
-  const win = parsed.window;
-  let window = DEFAULT_SETTINGS.window;
-  if (win && typeof win.width === "number" && typeof win.height === "number") {
-    window = { width: win.width, height: win.height };
-    if (typeof win.x === "number" && typeof win.y === "number") {
-      window.x = win.x;
-      window.y = win.y;
-    }
-  }
-
-  const merged: OxideSettings = {
-    ...DEFAULT_SETTINGS,
-    ...parsed,
-    theme,
-    snapPosition,
-    snapDisplay,
-    window,
-    hideCompleted: parsed.hideCompleted === true,
-    launchAtLogin: parsed.launchAtLogin === true,
-    shortcuts: {
-      ...DEFAULT_SETTINGS.shortcuts,
-      ...shortcutsIn,
-      doubleTapKey,
-    },
-  };
-  delete (merged as { captureScreenshot?: boolean }).captureScreenshot;
-  return merged;
-}
-
-// The desktop RPC contract (channels + payloads) lives in ./ipc.ts as
-// OxideDesktopApi — kept separate so it can be imported by the Node main
-// process, the sandboxed preload, and the browser renderer alike.

@@ -1064,6 +1064,18 @@ body.web-mode #app {
   scrollbar-width: thin;
 }
 
+/* page tabs: a full-width segmented control pinned under the top bar */
+.settings-tabs {
+  flex-shrink: 0;
+  padding: 2px 12px 8px;
+}
+
+.settings-tabs .seg-btn {
+  flex: 1;
+  padding: 5px 4px;
+  white-space: nowrap;
+}
+
 .settings-title {
   flex: 1;
   font-size: 13px;
@@ -1149,7 +1161,7 @@ body.web-mode #app {
   font-size: 11px;
   padding: 4px 2px 0;
   line-height: 1.5;
-  word-break: break-all;
+  overflow-wrap: anywhere;
   user-select: text;
 }
 

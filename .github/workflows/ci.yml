@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   typecheck:
-    name: Typecheck and browser bundle
+    name: Typecheck, tests and browser bundle
     runs-on: ubuntu-latest
 
     steps:
@@ -32,6 +32,9 @@ jobs:
 
       - name: Typecheck
         run: bunx tsc --noEmit
+
+      - name: Unit tests
+        run: bun test
 
       - name: Bundle browser view
         run: bun build src/mainview/index.ts --target browser --outdir "$RUNNER_TEMP/oxide-web"
