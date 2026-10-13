@@ -1,6 +1,6 @@
 {
   "name": "oxide",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "description": "Oxide is a floating, keyboard-first scratchpad for scattered AI work (Copper-style clone)",
   "author": "HologramSteve <exlkip@gmail.com>",
